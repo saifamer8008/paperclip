@@ -1,51 +1,36 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { activityApi } from "../api/activity";
 import { agentsApi } from "../api/agents";
 import { projectsApi } from "../api/projects";
 import { dashboardApi } from "../api/dashboard";
 import { heartbeatsApi } from "../api/heartbeats";
+import { issuesApi } from "../api/issues";
 import { useCompany } from "../context/CompanyContext";
 import { useDialog } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
+import { useToast } from "../context/ToastContext";
 import { queryKeys } from "../lib/queryKeys";
 import { ActivityRow } from "../components/ActivityRow";
 import { PageSkeleton } from "../components/PageSkeleton";
-import { StatusBadge } from "@/components/StatusBadge";
 import { timeAgo } from "../lib/timeAgo";
 import { Link } from "@/lib/router";
-import { issuesApi } from "../api/issues";
-import {
-  Bot, Radio, Wifi, History, CircleDotDashed,
-} from "lucide-react";
+import { Bot, Wifi, History, Send, Info, CircleDotDashed, Zap, CheckCircle2 } from "lucide-react";
 import type { Agent, ActivityEvent, HeartbeatRun } from "@paperclipai/shared";
 
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 //  Palette
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 const GOLD  = "#C9A84C";
 const GOLD2 = "#E8C97A";
 
-// ─────────────────────────────────────────────
-//  Clock
-// ─────────────────────────────────────────────
-function pad(n: number) { return String(n).padStart(2, "0"); }
-function useLiveClock() {
-  const [now, setNow] = useState(new Date());
-  useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
-  return now;
-}
-
-// ─────────────────────────────────────────────
-//  Status helpers
-// ─────────────────────────────────────────────
 const STATUS_COLOR: Record<string, string> = {
   running: "#34d399",
   idle:    "#818cf8",
   error:   "#f87171",
   paused:  "#fbbf24",
   pending_approval: "#fb923c",
-  terminated: "#4b5563",
+  terminated: "#6b7280",
 };
 const STATUS_LABEL: Record<string, string> = {
   running: "WORKING",
@@ -56,54 +41,81 @@ const STATUS_LABEL: Record<string, string> = {
   terminated: "OFF",
 };
 
-// ─────────────────────────────────────────────
+// Filter: team agents only (exclude razor-*, main, topic agents by urlKey/name pattern)
+function isTeamAgent(agent: Agent): boolean {
+  const key  = (agent.urlKey ?? "").toLowerCase();
+  const name = (agent.name   ?? "").toLowerCase();
+  // exclude razor topic/tool agents and "main"
+  if (key === "main")  return false;
+  if (key.startsWith("razor-")) return false;
+  if (name.startsWith("razor-")) return false;
+  return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Clock
+// ─────────────────────────────────────────────────────────────────────────────
+function pad(n: number) { return String(n).padStart(2, "0"); }
+function useLiveClock() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return now;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  Top bar
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 function TopBar({ totalAgents, runningAgents }: { totalAgents: number; runningAgents: number }) {
   const now = useLiveClock();
   return (
     <div
-      className="flex items-center justify-between px-4 py-2.5 rounded-xl shrink-0"
+      className="flex items-center justify-between px-5 py-3 rounded-2xl shrink-0"
       style={{
-        background: "rgba(0,0,0,0.55)",
-        border: `1px solid ${GOLD}33`,
+        background: "linear-gradient(90deg, rgba(10,9,15,0.95) 0%, rgba(18,14,8,0.95) 100%)",
+        border: `1px solid ${GOLD}30`,
+        boxShadow: `0 1px 30px rgba(201,168,76,0.06), inset 0 1px 0 rgba(201,168,76,0.08)`,
         fontFamily: "'Space Mono','Courier New',monospace",
       }}
     >
-      <div className="flex items-center gap-3">
-        <svg viewBox="0 0 28 28" width={26} height={26}>
-          <polygon points="14,2 26,8 26,20 14,26 2,20 2,8" fill="none" stroke={GOLD} strokeWidth="1.5" />
-          <text x="14" y="18" textAnchor="middle" fontSize="7" fontWeight="bold" fill={GOLD} fontFamily="monospace">LFG</text>
+      <div className="flex items-center gap-3.5">
+        <svg viewBox="0 0 32 32" width={30} height={30}>
+          <polygon points="16,2 30,9 30,23 16,30 2,23 2,9" fill="none" stroke={GOLD} strokeWidth="1.2" />
+          <polygon points="16,7 25,11.5 25,20.5 16,25 7,20.5 7,11.5" fill={GOLD} fillOpacity="0.07" stroke={GOLD} strokeWidth="0.6" strokeOpacity="0.4" />
+          <text x="16" y="20" textAnchor="middle" fontSize="7.5" fontWeight="900" fill={GOLD} fontFamily="monospace" letterSpacing="0.5">LFG</text>
         </svg>
         <div>
-          <div className="text-sm font-black tracking-[0.2em] uppercase" style={{ color: GOLD }}>MISSION CONTROL</div>
-          <div className="text-[9px] tracking-[0.12em] uppercase" style={{ color: GOLD + "77" }}>LFG Unified Ops · Boss Interface</div>
+          <div className="text-[13px] font-black tracking-[0.22em] uppercase" style={{ color: GOLD }}>MISSION CONTROL</div>
+          <div className="text-[9px] tracking-[0.14em] uppercase" style={{ color: GOLD + "60" }}>Laissez-Faire Group · Boss Interface</div>
         </div>
       </div>
 
-      <div className="hidden md:flex items-center gap-6">
-        <div className="text-center">
-          <div className="text-lg font-black tabular-nums" style={{ color: GOLD2 }}>{totalAgents}</div>
-          <div className="text-[9px] tracking-widest uppercase" style={{ color: GOLD + "77" }}>Agents</div>
-        </div>
-        <div className="text-center">
-          <div className="text-lg font-black tabular-nums" style={{ color: runningAgents > 0 ? "#34d399" : GOLD2 }}>{runningAgents}</div>
-          <div className="text-[9px] tracking-widest uppercase" style={{ color: GOLD + "77" }}>Active</div>
-        </div>
+      <div className="hidden md:flex items-center gap-8">
+        {[
+          { n: totalAgents,   label: "Agents",  color: GOLD2 },
+          { n: runningAgents, label: "Active",   color: runningAgents > 0 ? "#34d399" : GOLD2 },
+        ].map(s => (
+          <div key={s.label} className="text-center">
+            <div className="text-[22px] font-black tabular-nums leading-none" style={{ color: s.color }}>{s.n}</div>
+            <div className="text-[8px] tracking-widest uppercase mt-0.5" style={{ color: s.color + "70" }}>{s.label}</div>
+          </div>
+        ))}
       </div>
 
       <div className="flex items-center gap-4">
-        <div className="text-xl font-black tabular-nums" style={{ color: GOLD2, letterSpacing: "0.08em" }}>
+        <div className="text-[22px] font-black tabular-nums" style={{ color: GOLD2, letterSpacing: "0.1em" }}>
           {pad(now.getHours())}:{pad(now.getMinutes())}:{pad(now.getSeconds())}
         </div>
         <div className="hidden sm:flex flex-col gap-1">
-          <span className="flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded"
-            style={{ background: "rgba(52,211,153,0.1)", color: "#34d399", border: "1px solid rgba(52,211,153,0.25)" }}>
+          <span className="flex items-center gap-1 text-[9px] font-bold px-2.5 py-0.5 rounded-full"
+            style={{ background: "rgba(52,211,153,0.1)", color: "#34d399", border: "1px solid rgba(52,211,153,0.22)" }}>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE
           </span>
-          <span className="flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded"
-            style={{ background: "rgba(34,211,238,0.07)", color: "#22d3ee", border: "1px solid rgba(34,211,238,0.2)" }}>
-            <Wifi className="w-2.5 h-2.5" /> CONNECTED
+          <span className="flex items-center gap-1 text-[9px] font-bold px-2.5 py-0.5 rounded-full"
+            style={{ background: "rgba(34,211,238,0.06)", color: "#22d3ee", border: "1px solid rgba(34,211,238,0.18)" }}>
+            <Wifi className="w-2.5 h-2.5" /> ONLINE
           </span>
         </div>
       </div>
@@ -111,271 +123,357 @@ function TopBar({ totalAgents, runningAgents }: { totalAgents: number; runningAg
   );
 }
 
-// ─────────────────────────────────────────────
-//  Agent card (reference-style)
-// ─────────────────────────────────────────────
-function AgentCard({ agent }: { agent: Agent }) {
-  const color  = STATUS_COLOR[agent.status] ?? "#6b7280";
-  const label  = STATUS_LABEL[agent.status]  ?? agent.status.toUpperCase();
-  const initials = agent.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+// ─────────────────────────────────────────────────────────────────────────────
+//  Elite agent card
+// ─────────────────────────────────────────────────────────────────────────────
+function AgentCard({ agent, onPing }: { agent: Agent; onPing: (agent: Agent) => void }) {
+  const color   = STATUS_COLOR[agent.status] ?? "#6b7280";
+  const label   = STATUS_LABEL[agent.status]  ?? agent.status.toUpperCase();
+  const initials = agent.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  const isLive  = agent.status === "running";
 
   return (
-    <Link to={`/agents/${agent.urlKey ?? agent.id}`} className="no-underline block group">
-      <div
-        className="relative rounded-xl overflow-hidden transition-all duration-150 group-hover:translate-y-[-2px]"
-        style={{
-          background: "linear-gradient(160deg, rgba(15,15,20,0.9) 0%, rgba(5,5,10,0.95) 100%)",
-          border: `1px solid ${color}33`,
-          boxShadow: agent.status === "running" ? `0 0 18px ${color}18` : undefined,
-        }}
-      >
-        {/* Avatar section */}
-        <div
-          className="relative flex items-center justify-center"
-          style={{ height: 100, background: `linear-gradient(135deg, ${color}18 0%, rgba(0,0,0,0.4) 100%)` }}
-        >
-          <div
-            className="flex items-center justify-center rounded-full font-black text-2xl"
+    <div className="group relative flex flex-col rounded-2xl overflow-hidden transition-all duration-200 hover:scale-[1.025] hover:shadow-lg cursor-pointer"
+      style={{
+        background: `linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(0,0,0,0.55) 100%)`,
+        border: `1px solid ${color}28`,
+        boxShadow: isLive ? `0 0 22px ${color}22, inset 0 1px 0 rgba(255,255,255,0.05)` : `inset 0 1px 0 rgba(255,255,255,0.04)`,
+      }}
+    >
+      {/* Glow sweep on hover */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none rounded-2xl"
+        style={{ background: `radial-gradient(ellipse 80% 60% at 50% 0%, ${color}12 0%, transparent 70%)` }} />
+
+      {/* Avatar band */}
+      <div className="relative flex flex-col items-center pt-5 pb-3 px-4"
+        style={{ background: `linear-gradient(180deg, ${color}10 0%, transparent 100%)` }}>
+
+        {/* Status ring + avatar */}
+        <div className="relative mb-2">
+          {/* animated ring when live */}
+          {isLive && (
+            <div className="absolute inset-[-3px] rounded-full animate-ping opacity-30"
+              style={{ border: `2px solid ${color}` }} />
+          )}
+          <div className="relative flex items-center justify-center rounded-full font-black text-xl"
             style={{
-              width: 64, height: 64,
-              background: `${color}22`,
-              border: `2px solid ${color}66`,
+              width: 56, height: 56,
+              background: `radial-gradient(circle, ${color}22 0%, rgba(0,0,0,0.6) 100%)`,
+              border: `2px solid ${color}55`,
               color,
               fontFamily: "monospace",
-              boxShadow: agent.status === "running" ? `0 0 20px ${color}44` : undefined,
-            }}
-          >
+              boxShadow: `0 0 16px ${color}33`,
+              letterSpacing: "0.05em",
+            }}>
             {initials}
           </div>
-          {/* status dot */}
-          <span
-            className="absolute top-3 right-3 w-2.5 h-2.5 rounded-full"
-            style={{ background: color, boxShadow: `0 0 6px ${color}` }}
-          />
+          <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2"
+            style={{
+              background: color,
+              borderColor: "rgba(5,5,10,1)",
+              boxShadow: `0 0 6px ${color}`,
+            }} />
         </div>
 
-        {/* Info section */}
-        <div className="p-3">
-          <div className="flex items-start justify-between gap-1 mb-1">
-            <div>
-              <div className="text-sm font-black text-white/90 leading-tight" style={{ fontFamily: "monospace" }}>
-                {agent.name.replace(" Agent", "")}
-              </div>
-              {agent.title && (
-                <div className="text-[10px] mt-0.5" style={{ color: GOLD + "aa", fontFamily: "monospace" }}>
-                  {agent.title}
-                </div>
-              )}
+        {/* Name + title */}
+        <div className="text-center">
+          <div className="text-[13px] font-black text-white/92 leading-tight tracking-wide" style={{ fontFamily: "monospace" }}>
+            {agent.name.replace(/\s*Agent\s*$/i, "")}
+          </div>
+          {agent.title && (
+            <div className="text-[10px] mt-0.5 font-medium" style={{ color: GOLD + "99", fontFamily: "monospace" }}>
+              {agent.title}
             </div>
-          </div>
-
-          <div className="flex items-center justify-between mt-2">
-            <span
-              className="text-[9px] font-black tracking-widest px-2 py-0.5 rounded"
-              style={{ color, background: `${color}18`, border: `1px solid ${color}33` }}
-            >
-              {label}
-            </span>
-            <span className="text-[9px] text-white/35 font-mono">
-              {agent.lastHeartbeatAt ? timeAgo(agent.lastHeartbeatAt) : "Never"}
-            </span>
-          </div>
+          )}
         </div>
+      </div>
+
+      {/* Status + actions */}
+      <div className="px-3 pb-3 pt-1 flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[9px] font-black tracking-widest px-2 py-0.5 rounded-full"
+            style={{ color, background: `${color}18`, border: `1px solid ${color}30`, fontFamily: "monospace" }}>
+            {label}
+          </span>
+          <span className="text-[9px] text-white/30 font-mono">
+            {agent.lastHeartbeatAt ? timeAgo(agent.lastHeartbeatAt) : "Never"}
+          </span>
+        </div>
+
+        {/* Buttons */}
+        <div className="flex gap-1.5">
+          <Link to={`/agents/${agent.urlKey ?? agent.id}`} className="no-underline flex-1">
+            <div className="text-center text-[9px] font-black tracking-widest py-1.5 rounded-lg transition-all hover:opacity-90"
+              style={{
+                background: `${color}14`,
+                border: `1px solid ${color}28`,
+                color: color,
+                fontFamily: "monospace",
+              }}>
+              VIEW
+            </div>
+          </Link>
+          <button
+            onClick={() => onPing(agent)}
+            className="flex-1 text-[9px] font-black tracking-widest py-1.5 rounded-lg transition-all hover:opacity-90"
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: "rgba(255,255,255,0.5)",
+              fontFamily: "monospace",
+            }}
+          >
+            PING
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Notion-style task row
+// ─────────────────────────────────────────────────────────────────────────────
+function TaskRow({ title, status, assignee, id }: { title: string; status: string; assignee?: string; id: string }) {
+  const statusConfig: Record<string, { color: string; bg: string; label: string }> = {
+    todo:        { color: "#818cf8", bg: "rgba(129,140,248,0.1)",  label: "TODO" },
+    in_progress: { color: "#fbbf24", bg: "rgba(251,191,36,0.1)",   label: "IN PROG" },
+    in_review:   { color: "#22d3ee", bg: "rgba(34,211,238,0.1)",   label: "REVIEW" },
+    blocked:     { color: "#f87171", bg: "rgba(248,113,113,0.1)",  label: "BLOCKED" },
+    backlog:     { color: "#6b7280", bg: "rgba(107,114,128,0.1)",  label: "BACKLOG" },
+    done:        { color: "#34d399", bg: "rgba(52,211,153,0.1)",   label: "DONE" },
+  };
+  const cfg = statusConfig[status] ?? { color: "#6b7280", bg: "rgba(107,114,128,0.1)", label: status.toUpperCase() };
+
+  return (
+    <Link to={`/issues/${id}`} className="no-underline block group">
+      <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all hover:bg-white/[0.03]"
+        style={{ border: "1px solid transparent" }}>
+        <CircleDotDashed className="h-3 w-3 shrink-0" style={{ color: cfg.color }} />
+        <span className="flex-1 text-[12px] text-white/75 truncate group-hover:text-white/95 transition-colors">{title}</span>
+        {assignee && (
+          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0"
+            style={{ color: GOLD + "bb", background: GOLD + "12", fontFamily: "monospace" }}>
+            {assignee}
+          </span>
+        )}
+        <span className="text-[9px] font-black tracking-wider px-2 py-0.5 rounded-full shrink-0"
+          style={{ color: cfg.color, background: cfg.bg, fontFamily: "monospace" }}>
+          {cfg.label}
+        </span>
       </div>
     </Link>
   );
 }
 
-// ─────────────────────────────────────────────
-//  Live Feed panel (right rail)
-// ─────────────────────────────────────────────
-type FeedItem = {
-  id: string;
-  agentName: string;
-  agentColor: string;
-  text: string;
-  ts: Date;
-  type: "heartbeat" | "activity";
-  status?: string;
-};
+// ─────────────────────────────────────────────────────────────────────────────
+//  Command Panel (right rail) — ping / message / example
+// ─────────────────────────────────────────────────────────────────────────────
+type CmdTab = "compose" | "example";
 
-function LiveFeedPanel({
+const EXAMPLE_THREAD = [
+  { from: "You", text: "Francis — status update on the LFG structure doc?", ts: "9:01 AM", sent: true },
+  { from: "Francis", text: "Hey boss. Draft is 80% complete. Waiting on Austin's input for the governance section. Will have full draft by EOD.", ts: "9:04 AM", sent: false },
+  { from: "You", text: "Good. Ping Austin to prioritize that today.", ts: "9:05 AM", sent: true },
+  { from: "You", text: "Austin — Francis needs your governance section input for the LFG doc. Please prioritize today.", ts: "9:05 AM", sent: true },
+  { from: "Austin", text: "On it. I'll send over my section within the hour. Also flagging — Pose contract needs a signature by tomorrow.", ts: "9:12 AM", sent: false },
+  { from: "You", text: "Got it. Remind me at 4pm.", ts: "9:13 AM", sent: true },
+  { from: "System", text: "⏰ Reminder set: Pose contract signature — 4:00 PM", ts: "9:13 AM", sent: false },
+];
+
+function CommandPanel({
   agents,
-  agentMap,
-  runs,
-  activity,
-  entityNameMap,
-  entityTitleMap,
   selectedAgent,
+  companyId,
   onSelectAgent,
 }: {
   agents: Agent[];
-  agentMap: Map<string, Agent>;
-  runs: HeartbeatRun[];
-  activity: ActivityEvent[];
-  entityNameMap: Map<string, string>;
-  entityTitleMap: Map<string, string>;
-  selectedAgent: string | null;
-  onSelectAgent: (id: string | null) => void;
+  selectedAgent: Agent | null;
+  companyId: string;
+  onSelectAgent: (a: Agent | null) => void;
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [tab, setTab] = useState<CmdTab>("compose");
+  const [msg, setMsg] = useState("");
+  const { pushToast } = useToast();
+  const qc = useQueryClient();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Build unified feed from heartbeat runs + activity
-  const feed = useMemo<FeedItem[]>(() => {
-    const items: FeedItem[] = [];
+  const wakeup = useMutation({
+    mutationFn: (reason: string) =>
+      agentsApi.wakeup(selectedAgent!.id, { source: "on_demand", triggerDetail: "manual", reason }, companyId),
+    onSuccess: () => {
+      pushToast({ title: `Pinged ${selectedAgent?.name}`, tone: "success" });
+      qc.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
+      setMsg("");
+    },
+    onError: () => pushToast({ title: "Failed to send", tone: "error" }),
+  });
 
-    for (const run of runs.slice(0, 40)) {
-      const agent = agentMap.get(run.agentId);
-      if (!agent) continue;
-      const excerpt = run.stdoutExcerpt?.trim() || run.stderrExcerpt?.trim() || `Run ${run.status}`;
-      items.push({
-        id: `run-${run.id}`,
-        agentName: agent.name.replace(" Agent", ""),
-        agentColor: STATUS_COLOR[agent.status] ?? "#6b7280",
-        text: excerpt.slice(0, 200),
-        ts: new Date(run.createdAt),
-        type: "heartbeat",
-        status: run.status,
-      });
-    }
+  const handleSend = () => {
+    if (!msg.trim() || !selectedAgent) return;
+    wakeup.mutate(msg.trim());
+  };
 
-    for (const ev of activity.slice(0, 40)) {
-      const agent = agentMap.get(ev.agentId ?? "");
-      const entityKey = ev.entityType ? `${ev.entityType}:${ev.entityId}` : null;
-      const entityTitle = entityKey ? (entityTitleMap.get(entityKey) ?? entityNameMap.get(entityKey) ?? "") : "";
-      const text = `${ev.action}${entityTitle ? ` · ${entityTitle}` : ""}`;
-      items.push({
-        id: `act-${ev.id}`,
-        agentName: agent?.name.replace(" Agent", "") ?? "System",
-        agentColor: agent ? (STATUS_COLOR[agent.status] ?? "#6b7280") : "#6b7280",
-        text,
-        ts: new Date(ev.createdAt),
-        type: "activity",
-      });
-    }
-
-    return items.sort((a, b) => b.ts.getTime() - a.ts.getTime()).slice(0, 60);
-  }, [runs, activity, agentMap, entityNameMap, entityTitleMap]);
-
-  const filtered = useMemo(() => {
-    if (!selectedAgent) return feed;
-    const agent = agentMap.get(selectedAgent);
-    if (!agent) return feed;
-    const name = agent.name.replace(" Agent", "");
-    return feed.filter(f => f.agentName === name);
-  }, [feed, selectedAgent, agentMap]);
-
-  const msgCount = feed.length;
+  const teamAgents = agents.filter(isTeamAgent);
 
   return (
-    <div
-      className="flex flex-col rounded-xl overflow-hidden"
-      style={{
-        background: "rgba(8,8,14,0.92)",
-        border: `1px solid ${GOLD}22`,
-        height: "100%",
-      }}
-    >
+    <div className="flex flex-col rounded-2xl overflow-hidden h-full"
+      style={{ background: "rgba(8,7,14,0.95)", border: `1px solid ${GOLD}20` }}>
+
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2.5 shrink-0" style={{ borderBottom: `1px solid rgba(255,255,255,0.06)` }}>
-        <Radio className="h-4 w-4" style={{ color: "#34d399" }} />
-        <span className="text-sm font-black tracking-widest uppercase" style={{ color: "#34d399", fontFamily: "monospace" }}>
-          Live Feed
-        </span>
-        <span
-          className="ml-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full animate-pulse"
-          style={{ background: "rgba(52,211,153,0.12)", color: "#34d399", border: "1px solid rgba(52,211,153,0.25)" }}
-        >
-          LIVE
-        </span>
-        <span className="ml-auto text-[9px] text-white/30 font-mono">{msgCount} events</span>
-      </div>
-
-      {/* Agent filter tabs */}
-      <div className="flex gap-1 px-2 py-2 flex-wrap shrink-0" style={{ borderBottom: `1px solid rgba(255,255,255,0.04)` }}>
-        <button
-          onClick={() => onSelectAgent(null)}
-          className="text-[9px] font-bold px-2 py-0.5 rounded-full transition-all"
-          style={{
-            background: !selectedAgent ? `${GOLD}22` : "rgba(255,255,255,0.04)",
-            color: !selectedAgent ? GOLD : "rgba(255,255,255,0.4)",
-            border: `1px solid ${!selectedAgent ? GOLD + "44" : "transparent"}`,
-            fontFamily: "monospace",
-          }}
-        >
-          All
-        </button>
-        {agents.slice(0, 6).map(a => {
-          const active = selectedAgent === a.id;
-          const color = STATUS_COLOR[a.status] ?? "#6b7280";
-          return (
-            <button
-              key={a.id}
-              onClick={() => onSelectAgent(active ? null : a.id)}
-              className="text-[9px] font-bold px-2 py-0.5 rounded-full transition-all"
+      <div className="px-4 py-3 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="flex items-center gap-2 mb-3">
+          <Zap className="h-4 w-4" style={{ color: GOLD }} />
+          <span className="text-[13px] font-black tracking-widest uppercase" style={{ color: GOLD, fontFamily: "monospace" }}>
+            Command
+          </span>
+        </div>
+        {/* Tab row */}
+        <div className="flex gap-1">
+          {([["compose", "Compose"], ["example", "How it works"]] as [CmdTab, string][]).map(([t, lbl]) => (
+            <button key={t} onClick={() => setTab(t)}
+              className="text-[10px] font-bold px-3 py-1 rounded-full transition-all"
               style={{
-                background: active ? `${color}22` : "rgba(255,255,255,0.04)",
-                color: active ? color : "rgba(255,255,255,0.4)",
-                border: `1px solid ${active ? color + "44" : "transparent"}`,
+                background: tab === t ? `${GOLD}20` : "transparent",
+                color: tab === t ? GOLD : "rgba(255,255,255,0.35)",
+                border: `1px solid ${tab === t ? GOLD + "40" : "transparent"}`,
                 fontFamily: "monospace",
-              }}
-            >
-              {a.name.replace(" Agent", "")}
+              }}>
+              {lbl}
             </button>
-          );
-        })}
+          ))}
+        </div>
       </div>
 
-      {/* Feed items */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 py-2 space-y-1.5" style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}33 transparent` }}>
-        {filtered.length === 0 && (
-          <p className="text-[10px] text-white/25 font-mono text-center py-8">No events yet</p>
-        )}
-        {filtered.map(item => (
-          <div
-            key={item.id}
-            className="rounded-lg px-3 py-2"
-            style={{
-              background: item.type === "heartbeat"
-                ? `linear-gradient(90deg, ${item.agentColor}0a 0%, rgba(0,0,0,0.2) 100%)`
-                : "rgba(255,255,255,0.02)",
-              border: `1px solid ${item.agentColor}18`,
-            }}
-          >
-            <div className="flex items-center gap-1.5 mb-1">
-              <span
-                className="text-[9px] font-black tracking-wider px-1.5 py-0.5 rounded"
-                style={{ color: item.agentColor, background: `${item.agentColor}18`, fontFamily: "monospace" }}
-              >
-                {item.agentName}
-              </span>
-              {item.status && (
-                <span className="text-[8px] font-bold tracking-widest uppercase text-white/30 font-mono">
-                  {item.type === "heartbeat" ? item.status : "event"}
-                </span>
-              )}
-              <span className="ml-auto text-[8px] text-white/25 font-mono">{timeAgo(item.ts)}</span>
-            </div>
-            <p className="text-[10px] text-white/65 leading-relaxed font-mono line-clamp-3">{item.text}</p>
+      {tab === "example" ? (
+        /* ── Example thread ── */
+        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2" style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}30 transparent` }}>
+          <div className="mb-3 px-2 py-2 rounded-xl text-[10px] leading-relaxed"
+            style={{ background: `${GOLD}0a`, border: `1px solid ${GOLD}20`, color: "rgba(255,255,255,0.5)", fontFamily: "monospace" }}>
+            <Info className="h-3 w-3 inline mr-1.5" style={{ color: GOLD }} />
+            Select an agent, type a message, hit Send. It wakes the agent with your instruction as context. Responses appear in their heartbeat feed.
           </div>
-        ))}
-      </div>
+          {EXAMPLE_THREAD.map((m, i) => (
+            <div key={i} className={`flex flex-col gap-0.5 ${m.sent ? "items-end" : "items-start"}`}>
+              <span className="text-[9px] font-bold px-1" style={{ color: m.sent ? GOLD + "99" : "rgba(255,255,255,0.3)", fontFamily: "monospace" }}>
+                {m.from} · {m.ts}
+              </span>
+              <div className="max-w-[85%] px-3 py-2 rounded-2xl text-[11px] leading-relaxed"
+                style={{
+                  background: m.sent
+                    ? `linear-gradient(135deg, ${GOLD}28 0%, ${GOLD}14 100%)`
+                    : m.from === "System"
+                      ? "rgba(52,211,153,0.08)"
+                      : "rgba(255,255,255,0.05)",
+                  border: m.sent
+                    ? `1px solid ${GOLD}35`
+                    : m.from === "System"
+                      ? "1px solid rgba(52,211,153,0.2)"
+                      : "1px solid rgba(255,255,255,0.08)",
+                  color: m.sent ? "rgba(255,255,255,0.9)" : m.from === "System" ? "#34d399" : "rgba(255,255,255,0.75)",
+                  fontFamily: m.from === "System" ? "monospace" : undefined,
+                  fontSize: m.from === "System" ? "10px" : undefined,
+                }}>
+                {m.text}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* ── Compose tab ── */
+        <div className="flex flex-col flex-1 min-h-0">
+          {/* Agent selector */}
+          <div className="px-3 pt-3 shrink-0">
+            <div className="text-[9px] font-black tracking-widest uppercase mb-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "monospace" }}>
+              Send to
+            </div>
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {teamAgents.map(a => {
+                const active = selectedAgent?.id === a.id;
+                const color = STATUS_COLOR[a.status] ?? "#6b7280";
+                return (
+                  <button key={a.id} onClick={() => onSelectAgent(active ? null : a)}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all"
+                    style={{
+                      background: active ? `${color}22` : "rgba(255,255,255,0.04)",
+                      border: `1px solid ${active ? color + "50" : "rgba(255,255,255,0.1)"}`,
+                      color: active ? color : "rgba(255,255,255,0.45)",
+                      fontFamily: "monospace",
+                    }}>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
+                    {a.name.replace(/\s*Agent\s*$/i, "")}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Recent messages / activity for selected agent */}
+          <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-1.5" style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}30 transparent` }}>
+            {!selectedAgent ? (
+              <div className="flex flex-col items-center justify-center h-full gap-2 py-8">
+                <Bot className="h-8 w-8" style={{ color: GOLD + "40" }} />
+                <p className="text-[11px] text-white/20 font-mono text-center">Select an agent to<br />send a message or ping</p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <div className="text-[9px] font-bold text-white/25 font-mono px-1 pt-1">Recent from {selectedAgent.name.replace(/\s*Agent\s*$/i, "")}</div>
+                <div className="px-3 py-2.5 rounded-xl text-[11px] leading-relaxed"
+                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.55)", fontFamily: "monospace" }}>
+                  Type a message below to wake this agent with your instructions as context. They'll respond in their next heartbeat run.
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input bar */}
+          <div className="px-3 pb-3 shrink-0">
+            <div className="flex gap-2 items-end">
+              <textarea
+                value={msg}
+                onChange={e => setMsg(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                placeholder={selectedAgent ? `Message ${selectedAgent.name.replace(/\s*Agent\s*$/i, "")}…` : "Select an agent first…"}
+                disabled={!selectedAgent || wakeup.isPending}
+                rows={2}
+                className="flex-1 resize-none rounded-xl px-3 py-2 text-[11px] outline-none transition-all disabled:opacity-40"
+                style={{
+                  background: "rgba(255,255,255,0.05)",
+                  border: `1px solid ${selectedAgent ? GOLD + "35" : "rgba(255,255,255,0.08)"}`,
+                  color: "rgba(255,255,255,0.85)",
+                  fontFamily: "monospace",
+                  scrollbarWidth: "none",
+                }}
+              />
+              <button
+                onClick={handleSend}
+                disabled={!selectedAgent || !msg.trim() || wakeup.isPending}
+                className="flex items-center justify-center w-9 h-9 rounded-xl transition-all disabled:opacity-30 hover:scale-105"
+                style={{ background: `${GOLD}22`, border: `1px solid ${GOLD}44`, color: GOLD }}
+              >
+                <Send className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 //  Main Dashboard
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 export function Dashboard() {
   const { selectedCompanyId, companies } = useCompany();
   const { openOnboarding }               = useDialog();
   const { setBreadcrumbs }               = useBreadcrumbs();
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
 
   useEffect(() => { setBreadcrumbs([{ label: "Dashboard" }]); }, [setBreadcrumbs]);
 
-  // ── Data queries
+  // ── Queries
   const { data: summaryRaw, isLoading } = useQuery({
     queryKey: queryKeys.dashboard(selectedCompanyId!),
     queryFn:  () => dashboardApi.summary(selectedCompanyId!),
@@ -406,16 +504,10 @@ export function Dashboard() {
     queryKey: queryKeys.issues.list(selectedCompanyId!),
     queryFn:  () => issuesApi.list(selectedCompanyId!),
     enabled:  !!selectedCompanyId,
+    refetchInterval: 15000,
   });
 
-  const { data: runsRaw } = useQuery({
-    queryKey: ["heartbeat-runs-dashboard", selectedCompanyId],
-    queryFn:  () => heartbeatsApi.list(selectedCompanyId!, undefined, 50),
-    enabled:  !!selectedCompanyId,
-    refetchInterval: 6000,
-  });
-
-  // ── Derived maps
+  // ── Derived
   const agentMap = useMemo(() => {
     const m = new Map<string, Agent>();
     for (const a of agents ?? []) m.set(a.id, a);
@@ -424,8 +516,8 @@ export function Dashboard() {
 
   const entityNameMap = useMemo(() => {
     const m = new Map<string, string>();
-    for (const i of issues  ?? []) m.set(`issue:${i.id}`,   i.identifier ?? i.id.slice(0, 8));
-    for (const a of agents  ?? []) m.set(`agent:${a.id}`,   a.name);
+    for (const i of issues   ?? []) m.set(`issue:${i.id}`,   i.identifier ?? i.id.slice(0, 8));
+    for (const a of agents   ?? []) m.set(`agent:${a.id}`,   a.name);
     for (const p of projects ?? []) m.set(`project:${p.id}`, p.name);
     return m;
   }, [issues, agents, projects]);
@@ -436,105 +528,138 @@ export function Dashboard() {
     return m;
   }, [issues]);
 
-  const activity      = useMemo(() => (activityRaw ?? []).slice(0, 60), [activityRaw]);
-  const runs          = useMemo(() => (runsRaw ?? []).slice(0, 50), [runsRaw]);
-  const totalAgents   = (agents ?? []).length;
-  const runningAgents = (agents ?? []).filter(a => a.status === "running").length;
-  const openIssues    = (issues  ?? []).filter(i => i.status !== "done" && i.status !== "cancelled").length;
+  const teamAgents    = useMemo(() => (agents ?? []).filter(isTeamAgent), [agents]);
+  const totalAgents   = teamAgents.length;
+  const runningAgents = teamAgents.filter(a => a.status === "running").length;
+  const activity      = useMemo(() => (activityRaw ?? []).slice(0, 50), [activityRaw]);
+
+  // Open issues = tasks panel
+  const openTasks = useMemo(() =>
+    (issues ?? [])
+      .filter(i => i.status !== "done" && i.status !== "cancelled")
+      .slice(0, 8),
+    [issues]
+  );
+
+  // Agent name → short label for task assignee
+  const agentShortName = (agentId: string | null | undefined) => {
+    if (!agentId) return undefined;
+    const a = agentMap.get(agentId);
+    return a ? a.name.replace(/\s*Agent\s*$/i, "") : undefined;
+  };
 
   if (isLoading) return <PageSkeleton variant="dashboard" />;
 
   const hasNoAgents = agents !== undefined && agents.length === 0;
 
   return (
-    <div
-      className="flex flex-col gap-3 h-[calc(100vh-3.5rem)] overflow-hidden"
-      style={{ fontFamily: "'Space Mono','Courier New',monospace" }}
-    >
-      {/* ── Top bar */}
+    <div className="flex flex-col gap-3 h-[calc(100vh-3.5rem)] overflow-hidden"
+      style={{ fontFamily: "'Space Mono','Courier New',monospace" }}>
+
+      {/* Top bar */}
       <TopBar totalAgents={totalAgents} runningAgents={runningAgents} />
 
-      {/* ── Onboarding nudge */}
+      {/* No agents nudge */}
       {hasNoAgents && (
-        <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl shrink-0"
-          style={{ background: "rgba(201,168,76,0.05)", border: `1px solid ${GOLD}33` }}>
+        <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl shrink-0"
+          style={{ background: "rgba(201,168,76,0.05)", border: `1px solid ${GOLD}30` }}>
           <div className="flex items-center gap-2.5">
             <Bot className="h-4 w-4 shrink-0" style={{ color: GOLD }} />
             <span className="text-sm text-white/70">No agents yet.</span>
           </div>
-          <button
-            onClick={() => openOnboarding({ initialStep: 2, companyId: selectedCompanyId! })}
+          <button onClick={() => openOnboarding({ initialStep: 2, companyId: selectedCompanyId! })}
             className="text-xs font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"
-            style={{ color: GOLD }}
-          >
+            style={{ color: GOLD }}>
             Create Agent →
           </button>
         </div>
       )}
 
-      {/* ── Main body: Left (agents + activity) | Right (live feed) */}
+      {/* ── Body: Left | Right ── */}
       <div className="flex gap-3 flex-1 min-h-0">
 
-        {/* LEFT column */}
-        <div className="flex-1 min-w-0 flex flex-col gap-3 overflow-hidden">
+        {/* ── LEFT COLUMN ── */}
+        <div className="flex-1 min-w-0 flex flex-col gap-3 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}22 transparent` }}>
 
-          {/* Agent grid */}
+          {/* SECTION: Team agents */}
           <div className="shrink-0">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-1.5 text-[10px] font-black tracking-widest uppercase" style={{ color: GOLD }}>
-                <Bot className="h-3 w-3" /> Agent Status Board
-              </div>
-              <Link to="/agents" className="text-[10px] font-bold tracking-widest uppercase hover:opacity-70 transition-opacity" style={{ color: GOLD }}>
-                Manage →
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: GOLD, fontFamily: "monospace" }}>
+                Team
+              </span>
+              <Link to="/agents" className="text-[9px] font-bold tracking-widest uppercase hover:opacity-70 transition-opacity"
+                style={{ color: GOLD + "99" }}>
+                All Agents →
               </Link>
             </div>
-            {(agents ?? []).length === 0 ? (
-              <p className="text-[10px] text-white/30 font-mono py-4 text-center">No agents yet</p>
+            {teamAgents.length === 0 ? (
+              <p className="text-[10px] text-white/25 font-mono py-4 text-center">No team agents</p>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-                {(agents ?? [])
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
+                {teamAgents
                   .sort((a, b) => {
                     const order = ["running","error","pending_approval","paused","idle","terminated"];
                     return order.indexOf(a.status) - order.indexOf(b.status);
                   })
-                  .map(agent => <AgentCard key={agent.id} agent={agent} />)
-                }
+                  .map(agent => (
+                    <AgentCard key={agent.id} agent={agent} onPing={setSelectedAgent} />
+                  ))}
               </div>
             )}
           </div>
 
-          {/* Stats strip */}
-          <div className="grid grid-cols-3 gap-2 shrink-0">
-            {[
-              { label: "Open Issues",  value: String(openIssues),   to: "/issues",   color: "#818cf8" },
-              { label: "Active",       value: String(runningAgents), to: "/agents",   color: "#34d399" },
-              { label: "Projects",     value: String((projects ?? []).length), to: "/projects", color: GOLD },
-            ].map(s => (
-              <Link key={s.label} to={s.to} className="no-underline">
-                <div
-                  className="rounded-xl px-3 py-2.5 hover:translate-y-[-1px] transition-transform"
-                  style={{ background: `${s.color}0d`, border: `1px solid ${s.color}22` }}
-                >
-                  <div className="text-xl font-black tabular-nums" style={{ color: s.color, fontFamily: "monospace" }}>{s.value}</div>
-                  <div className="text-[9px] tracking-widest uppercase mt-0.5" style={{ color: s.color + "88" }}>{s.label}</div>
-                </div>
-              </Link>
-            ))}
-          </div>
-
-          {/* Activity feed */}
-          <div className="flex-1 rounded-xl overflow-hidden flex flex-col min-h-0"
-            style={{ background: "rgba(0,0,0,0.35)", border: `1px solid ${GOLD}18` }}>
-            <div className="flex items-center justify-between px-3 py-2 shrink-0"
+          {/* SECTION: Open tasks (Notion-style) */}
+          <div className="shrink-0 rounded-2xl overflow-hidden"
+            style={{ background: "rgba(0,0,0,0.4)", border: `1px solid rgba(255,255,255,0.06)` }}>
+            <div className="flex items-center justify-between px-4 py-2.5"
               style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-              <div className="flex items-center gap-1.5 text-[10px] font-black tracking-widest uppercase" style={{ color: GOLD }}>
-                <History className="h-2.5 w-2.5" /> Activity Feed
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-3.5 w-3.5" style={{ color: GOLD }} />
+                <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: GOLD, fontFamily: "monospace" }}>
+                  Open Tasks
+                </span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold"
+                  style={{ background: GOLD + "18", color: GOLD + "bb", fontFamily: "monospace" }}>
+                  {openTasks.length}
+                </span>
               </div>
-              <Link to="/activity" className="text-[9px] font-bold tracking-widest uppercase hover:opacity-70 transition-opacity" style={{ color: GOLD }}>
+              <Link to="/issues" className="text-[9px] font-bold tracking-widest uppercase hover:opacity-70 transition-opacity"
+                style={{ color: GOLD + "99" }}>
                 All →
               </Link>
             </div>
-            <div className="flex-1 overflow-y-auto px-2 py-1" style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}33 transparent` }}>
+            <div className="py-1">
+              {openTasks.length === 0 ? (
+                <p className="text-[10px] text-white/25 font-mono py-4 text-center">No open tasks</p>
+              ) : (
+                openTasks.map(issue => (
+                  <TaskRow
+                    key={issue.id}
+                    id={issue.id}
+                    title={issue.title}
+                    status={issue.status}
+                    assignee={agentShortName(issue.assigneeAgentId)}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* SECTION: Activity feed */}
+          <div className="flex-1 rounded-2xl overflow-hidden flex flex-col min-h-[200px]"
+            style={{ background: "rgba(0,0,0,0.35)", border: `1px solid rgba(255,255,255,0.05)` }}>
+            <div className="flex items-center justify-between px-4 py-2.5 shrink-0"
+              style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+              <div className="flex items-center gap-2">
+                <History className="h-3.5 w-3.5" style={{ color: GOLD }} />
+                <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: GOLD, fontFamily: "monospace" }}>Activity</span>
+              </div>
+              <Link to="/activity" className="text-[9px] font-bold tracking-widest uppercase hover:opacity-70 transition-opacity"
+                style={{ color: GOLD + "99" }}>
+                All →
+              </Link>
+            </div>
+            <div className="flex-1 overflow-y-auto px-2 py-1" style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}22 transparent` }}>
               {activity.length === 0 ? (
                 <p className="text-[10px] text-white/25 font-mono text-center py-6">No activity yet</p>
               ) : (
@@ -546,7 +671,7 @@ export function Dashboard() {
                       agentMap={agentMap}
                       entityNameMap={entityNameMap}
                       entityTitleMap={entityTitleMap}
-                      className="px-2 py-1.5 hover:bg-white/[0.02] transition-colors rounded-md"
+                      className="px-2 py-1.5 hover:bg-white/[0.02] transition-colors rounded-lg"
                     />
                   ))}
                 </div>
@@ -556,16 +681,12 @@ export function Dashboard() {
 
         </div>
 
-        {/* RIGHT rail — live feed */}
-        <div className="w-[320px] xl:w-[360px] shrink-0">
-          <LiveFeedPanel
+        {/* ── RIGHT RAIL: Command Panel ── */}
+        <div className="w-[310px] xl:w-[340px] shrink-0">
+          <CommandPanel
             agents={agents ?? []}
-            agentMap={agentMap}
-            runs={runs}
-            activity={activity}
-            entityNameMap={entityNameMap}
-            entityTitleMap={entityTitleMap}
             selectedAgent={selectedAgent}
+            companyId={selectedCompanyId ?? ""}
             onSelectAgent={setSelectedAgent}
           />
         </div>
