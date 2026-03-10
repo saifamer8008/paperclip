@@ -13,8 +13,9 @@ import { Button } from "@/components/ui/button";
 import { formatCents, cn } from "../lib/utils";
 import { timeAgo } from "../lib/timeAgo";
 import { type Agent, type HeartbeatRun } from "@paperclipai/shared";
-import { CheckCircle2, XCircle, Clock, Loader2, Slash, Timer, Play, Bot, Zap } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, Loader2, Slash, Timer, Play, Bot, Zap, Terminal, X } from 'lucide-react';
 import { useToast } from "../context/ToastContext";
+import { AnimatePresence, motion } from "framer-motion";
 
 const GOLD = "#C9A84C";
 const STATUS_COLOR: Record<string, string> = {
@@ -148,6 +149,8 @@ export function AgentDetail() {
     };
   }, [heartbeats]);
 
+  const [logRun, setLogRun] = useState<HeartbeatRun | null>(null);
+
   if (isAgentLoading || isHeartbeatsLoading) return <PageSkeleton variant="detail" />;
   if (agentError) return <p className="text-sm text-destructive">{agentError.message}</p>;
   if (!agent) return null;
@@ -209,6 +212,7 @@ export function AgentDetail() {
             ◈ Heartbeat History
           </span>
           {isHeartbeatsLoading && <Loader2 className="h-3 w-3 animate-spin text-white/30" />}
+          <span className="ml-auto text-[9px] text-white/25 font-mono">click row → full log</span>
         </div>
 
         {heartbeatsError && <p className="text-xs text-destructive font-mono">{(heartbeatsError as Error).message}</p>}
@@ -224,36 +228,118 @@ export function AgentDetail() {
               : statusInfo.color.includes("red") ? "#f87171"
               : statusInfo.color.includes("yellow") ? "#fbbf24"
               : "#818cf8";
+            const hasLog = !!(run.stdoutExcerpt || run.stderrExcerpt || run.error);
             return (
-              <div
+              <button
                 key={run.id}
-                className="flex items-start gap-3 p-3 rounded-lg"
-                style={{ background: `${runColor}08`, border: `1px solid ${runColor}22` }}
+                className="w-full text-left flex items-start gap-3 p-3 rounded-lg transition-all"
+                style={{
+                  background: `${runColor}08`,
+                  border: `1px solid ${runColor}22`,
+                  cursor: hasLog ? "pointer" : "default",
+                }}
+                onClick={() => hasLog && setLogRun(run)}
+                onMouseEnter={(e) => { if (hasLog) (e.currentTarget as HTMLElement).style.background = `${runColor}14`; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = `${runColor}08`; }}
               >
-                <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
-                  style={{ background: `${runColor}20`, border: `1px solid ${runColor}44` }}
-                >
+                <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: `${runColor}20`, border: `1px solid ${runColor}44` }}>
                   <Icon size={13} style={{ color: runColor }} />
                 </div>
                 <div className="flex-1 min-w-0 pt-0.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-bold" style={{ color: runColor, fontFamily: "monospace" }}>
-                      {statusInfo.label}
-                    </span>
+                    <span className="text-xs font-bold" style={{ color: runColor, fontFamily: "monospace" }}>{statusInfo.label}</span>
                     <span className="text-[10px] text-white/35 font-mono shrink-0">{timeAgo(run.createdAt)}</span>
                   </div>
                   {run.stdoutExcerpt && (
-                    <p className="text-[10px] font-mono text-white/40 mt-1 leading-relaxed truncate">
-                      {run.stdoutExcerpt.slice(0, 120)}
-                    </p>
+                    <p className="text-[10px] font-mono text-white/40 mt-1 leading-relaxed truncate">{run.stdoutExcerpt.slice(0, 120)}</p>
+                  )}
+                  {hasLog && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <Terminal className="h-2.5 w-2.5" style={{ color: `${runColor}88` }} />
+                      <span className="text-[9px] font-mono" style={{ color: `${runColor}88` }}>View full log</span>
+                    </div>
                   )}
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
       </div>
+
+      {/* Stdout / log modal */}
+      <AnimatePresence>
+        {logRun && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }}
+            onClick={() => setLogRun(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 12 }}
+              transition={{ duration: 0.18 }}
+              className="w-full max-w-2xl max-h-[80vh] flex flex-col rounded-2xl overflow-hidden"
+              style={{ background: "oklch(0.09 0.008 260)", border: `1px solid ${GOLD}33`, boxShadow: `0 0 48px rgba(0,0,0,0.8)` }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* modal header */}
+              <div className="flex items-center gap-3 px-5 py-3.5" style={{ borderBottom: `1px solid ${GOLD}22` }}>
+                <Terminal className="h-4 w-4" style={{ color: GOLD }} />
+                <span className="text-xs font-black tracking-widest uppercase flex-1" style={{ color: GOLD, fontFamily: "monospace" }}>
+                  Run Log — {timeAgo(logRun.createdAt)}
+                </span>
+                <span
+                  className="text-[9px] font-black uppercase px-2 py-0.5 rounded mr-2"
+                  style={{
+                    background: logRun.status === "succeeded" ? "#34d39918" : "#f8717118",
+                    color: logRun.status === "succeeded" ? "#34d399" : "#f87171",
+                  }}
+                >
+                  {logRun.status}
+                </span>
+                <button onClick={() => setLogRun(null)} className="text-white/30 hover:text-white/70 transition-colors">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* modal body */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {logRun.stdoutExcerpt && (
+                  <div>
+                    <div className="text-[9px] uppercase tracking-widest text-white/30 font-mono mb-2">stdout</div>
+                    <pre className="text-[11px] font-mono text-emerald-300/80 leading-relaxed whitespace-pre-wrap break-all p-3 rounded-lg" style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(52,211,153,0.1)" }}>
+                      {logRun.stdoutExcerpt}
+                    </pre>
+                  </div>
+                )}
+                {logRun.stderrExcerpt && (
+                  <div>
+                    <div className="text-[9px] uppercase tracking-widest text-white/30 font-mono mb-2">stderr</div>
+                    <pre className="text-[11px] font-mono text-red-300/80 leading-relaxed whitespace-pre-wrap break-all p-3 rounded-lg" style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(248,113,113,0.1)" }}>
+                      {logRun.stderrExcerpt}
+                    </pre>
+                  </div>
+                )}
+                {logRun.error && (
+                  <div>
+                    <div className="text-[9px] uppercase tracking-widest text-white/30 font-mono mb-2">error</div>
+                    <pre className="text-[11px] font-mono text-red-400/90 leading-relaxed whitespace-pre-wrap break-all p-3 rounded-lg" style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.2)" }}>
+                      {logRun.error}
+                    </pre>
+                  </div>
+                )}
+                {!logRun.stdoutExcerpt && !logRun.stderrExcerpt && !logRun.error && (
+                  <p className="text-xs text-white/25 font-mono py-4 text-center">No log output available for this run.</p>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </HudPageShell>
   );
 }
