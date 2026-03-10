@@ -555,7 +555,7 @@ export function Dashboard() {
                 {runningAgents} ACTIVE
               </span>
             </div>
-            <AgentOffice agents={agents} />
+            <AgentOffice agents={agents} companyId={selectedCompanyId!} />
           </div>
         </div>
 

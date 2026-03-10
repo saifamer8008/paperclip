@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
-import { Link, useNavigate, useLocation } from "@/lib/router";
+import { useEffect } from "react";
+import { Link, useLocation, useNavigate } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { agentsApi } from "../api/agents";
 import { useCompany } from "../context/CompanyContext";
@@ -23,8 +23,12 @@ const GOLD = "#C9A84C";
 type View = "office" | "list";
 
 const STATUS_COLOR: Record<string, string> = {
-  running: "#34d399", idle: "#818cf8", error: "#f87171",
-  paused: "#fbbf24", pending_approval: "#fb923c", terminated: "#4b5563",
+  running: "#34d399",
+  idle: "#818cf8",
+  error: "#f87171",
+  paused: "#fbbf24",
+  pending_approval: "#fb923c",
+  terminated: "#4b5563",
 };
 
 function HeartbeatTriggerButton({ agentId, agentName, companyId }: { agentId: string; agentName: string; companyId: string }) {
@@ -34,10 +38,14 @@ function HeartbeatTriggerButton({ agentId, agentName, companyId }: { agentId: st
     mutationFn: async () => {
       const r = await fetch(`/api/agents/${agentId}/heartbeat/invoke`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-paperclip-company-id": companyId, "x-paperclip-local-trusted": "true" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-paperclip-company-id": companyId,
+          "x-paperclip-local-trusted": "true",
+        },
         body: JSON.stringify({ source: "on_demand", triggerDetail: "manual" }),
       });
-      if (!r.ok) throw new Error(await r.text() || "Failed");
+      if (!r.ok) throw new Error((await r.text()) || "Failed");
       return r.json();
     },
     onSuccess: () => {
@@ -50,13 +58,34 @@ function HeartbeatTriggerButton({ agentId, agentName, companyId }: { agentId: st
 
   return (
     <button
-      onClick={(e) => { e.preventDefault(); e.stopPropagation(); trigger.mutate(); }}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        trigger.mutate();
+      }}
       disabled={trigger.isPending}
-      className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold tracking-widest uppercase transition-all disabled:opacity-50"
+      className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-50"
       style={{ background: `${GOLD}14`, color: GOLD, border: `1px solid ${GOLD}33`, fontFamily: "monospace" }}
     >
       {trigger.isPending ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Zap className="h-2.5 w-2.5" />}
       Run
+    </button>
+  );
+}
+
+function ViewTabButton({ active, children, onClick }: { active: boolean; children: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-md px-4 py-2 text-xs font-bold uppercase tracking-widest transition-all"
+      style={{
+        color: active ? GOLD : "rgba(255,255,255,0.4)",
+        border: `1px solid ${active ? GOLD : "transparent"}`,
+        background: active ? "rgba(201, 168, 76, 0.10)" : "transparent",
+        fontFamily: "'Space Mono','Courier New',monospace",
+      }}
+    >
+      {children}
     </button>
   );
 }
@@ -67,8 +96,7 @@ export function Agents() {
   const { setBreadcrumbs } = useBreadcrumbs();
   const navigate = useNavigate();
   const location = useLocation();
-  const searchParams = new URLSearchParams(location.search);
-  const view: View = searchParams.get('view') === "list" ? "list" : "office";
+  const view: View = new URLSearchParams(location.search).get("view") === "list" ? "list" : "office";
 
   const { data: agents, isLoading, error } = useQuery({
     queryKey: queryKeys.agents.list(selectedCompanyId!),
@@ -77,28 +105,16 @@ export function Agents() {
     refetchInterval: 10000,
   });
 
-  useEffect(() => { setBreadcrumbs([{ label: "Agents" }]); }, [setBreadcrumbs]);
+  useEffect(() => {
+    setBreadcrumbs([{ label: "Agents" }]);
+  }, [setBreadcrumbs]);
 
-  const setView = (newView: View) => {
-    navigate(`/agents?view=${newView}`);
+  const setView = (nextView: View) => {
+    navigate(`/agents?view=${nextView}`);
   };
 
   if (!selectedCompanyId) return <EmptyState icon={Bot} message="Select a company to view agents." />;
   if (isLoading) return <PageSkeleton variant="list" />;
-
-  const TabButton = ({ active, children, onClick }: { active: boolean; children: React.ReactNode; onClick: () => void }) => (
-    <button
-      onClick={onClick}
-      className="px-4 py-2 text-xs font-bold tracking-widest uppercase rounded-md transition-all"
-      style={{
-        color: active ? GOLD : "rgba(255,255,255,0.4)",
-        border: active ? `1px solid ${GOLD}` : "1px solid transparent",
-        backgroundColor: active ? "rgba(201, 168, 76, 0.1)" : "transparent",
-      }}
-    >
-      {children}
-    </button>
-  );
 
   return (
     <HudPageShell
@@ -112,65 +128,68 @@ export function Agents() {
       }
       tabs={
         <div className="flex items-center gap-2">
-          <TabButton active={view === "office"} onClick={() => setView("office")}>Office</TabButton>
-          <TabButton active={view === "list"} onClick={() => setView("list")}>List</TabButton>
+          <ViewTabButton active={view === "office"} onClick={() => setView("office")}>OFFICE</ViewTabButton>
+          <ViewTabButton active={view === "list"} onClick={() => setView("list")}>LIST</ViewTabButton>
         </div>
       }
+      className={view === "office" ? "w-full max-w-none" : undefined}
     >
-      {error && <p className="text-xs text-destructive font-mono">{(error as Error).message}</p>}
+      {error && <p className="font-mono text-xs text-destructive">{(error as Error).message}</p>}
 
       {agents?.length === 0 && (
         <EmptyState icon={Bot} message="Create your first agent to get started." action="New Agent" onAction={openNewAgent} />
       )}
 
-      {view === "office" && agents && selectedCompanyId && (
-        <div className="w-full max-w-full">
-          <AgentOffice agents={agents} />
+      {view === "office" && agents && (
+        <div className="w-full max-w-none">
+          <AgentOffice agents={agents} companyId={selectedCompanyId} />
         </div>
       )}
 
       {view === "list" && agents && agents.length > 0 && (
         <motion.div
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
+          className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
           variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
           initial="hidden"
           animate="visible"
         >
-          {agents.map((agent) => {
+          {agents.map((agent: Agent) => {
             const color = STATUS_COLOR[agent.status] ?? "#6b7280";
             return (
               <motion.div key={agent.id} variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } }}>
                 <div
-                  className="relative flex flex-col gap-3 p-4 rounded-xl h-full transition-all duration-150 hover:translate-y-[-1px]"
+                  className="relative flex h-full flex-col gap-3 rounded-xl p-4 transition-all duration-150 hover:translate-y-[-1px]"
                   style={{
-                    background: `linear-gradient(160deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 100%)`,
+                    background: "linear-gradient(160deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 100%)",
                     border: `1px solid ${color}33`,
                     boxShadow: agent.status === "running" ? `0 0 16px ${color}22` : undefined,
                   }}
                 >
                   <div className="flex items-center gap-3">
                     <div
-                      className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 font-black text-base"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-black text-base"
                       style={{ background: `${color}18`, border: `1px solid ${color}33`, color, fontFamily: "monospace" }}
                     >
                       {agent.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="font-bold text-sm text-white/90 truncate" style={{ fontFamily: "monospace" }}>
+                      <div className="truncate text-sm font-bold text-white/90" style={{ fontFamily: "monospace" }}>
                         {agent.name.replace(" Agent", "")}
                       </div>
-                      {agent.title && <div className="text-[10px] text-white/45 truncate">{agent.title}</div>}
+                      {agent.title && <div className="truncate text-[10px] text-white/45">{agent.title}</div>}
                     </div>
                     <StatusBadge status={agent.status} />
                   </div>
-                  <div className="text-[10px] text-white/40 font-mono">
+
+                  <div className="font-mono text-[10px] text-white/40">
                     {agent.lastHeartbeatAt ? `Last active ${timeAgo(agent.lastHeartbeatAt)}` : "Never active"}
                   </div>
-                  <div className="flex items-center justify-between mt-auto pt-1 border-t border-white/[0.05]">
-                    <HeartbeatTriggerButton agentId={agent.id} agentName={agent.name} companyId={selectedCompanyId!} />
+
+                  <div className="mt-auto flex items-center justify-between border-t border-white/[0.05] pt-1">
+                    <HeartbeatTriggerButton agentId={agent.id} agentName={agent.name} companyId={selectedCompanyId} />
                     <Link
                       to={agentUrl(agent)}
-                      className="text-[10px] font-bold tracking-widest uppercase no-underline hover:opacity-80 transition-opacity"
+                      className="text-[10px] font-bold uppercase tracking-widest no-underline transition-opacity hover:opacity-80"
                       style={{ color: GOLD, fontFamily: "monospace" }}
                     >
                       View →
