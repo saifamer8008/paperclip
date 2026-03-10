@@ -35,7 +35,8 @@ interface NavItem {
 export function Sidebar() {
     const [isExpanded, setIsExpanded] = useLocalStorage('sidebar-expanded', true);
     const location = useLocation();
-    const { selectedCompanyId } = useCompany();
+    const { selectedCompanyId, selectedCompany } = useCompany();
+    const companyPrefix = selectedCompany?.issuePrefix ?? selectedCompanyId ?? "";
 
     const navItems = useMemo<NavItem[]>(() => [
         { to: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard, exact: true },
@@ -64,7 +65,7 @@ export function Sidebar() {
             ? location.pathname === item.to
             : location.pathname.startsWith(item.to);
 
-        const fullPath = item.to.startsWith('http') ? item.to : `/${selectedCompanyId}${item.to}`;
+        const fullPath = item.to.startsWith('http') ? item.to : `/${companyPrefix}${item.to}`;
 
         return (
             <a
