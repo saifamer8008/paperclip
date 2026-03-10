@@ -157,45 +157,50 @@ export function Agents() {
             const color = STATUS_COLOR[agent.status] ?? "#6b7280";
             return (
               <motion.div key={agent.id} variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } }}>
-                <div
-                  className="relative flex h-full flex-col gap-3 rounded-xl p-4 transition-all duration-150 hover:translate-y-[-1px]"
-                  style={{
-                    background: "linear-gradient(160deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 100%)",
-                    border: `1px solid ${color}33`,
-                    boxShadow: agent.status === "running" ? `0 0 16px ${color}22` : undefined,
-                  }}
+                <Link
+                  to={agentUrl(agent)}
+                  className="no-underline block"
+                  style={{ color: "inherit" }}
                 >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-black text-base"
-                      style={{ background: `${color}18`, border: `1px solid ${color}33`, color, fontFamily: "monospace" }}
-                    >
-                      {agent.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-bold text-white/90" style={{ fontFamily: "monospace" }}>
-                        {agent.name.replace(" Agent", "")}
+                  <div
+                    className="relative flex h-full flex-col gap-3 rounded-xl p-4 transition-all duration-150 hover:translate-y-[-1px] cursor-pointer"
+                    style={{
+                      background: "linear-gradient(160deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 100%)",
+                      border: `1px solid ${color}33`,
+                      boxShadow: agent.status === "running" ? `0 0 16px ${color}22` : undefined,
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-black text-base"
+                        style={{ background: `${color}18`, border: `1px solid ${color}33`, color, fontFamily: "monospace" }}
+                      >
+                        {agent.name.charAt(0).toUpperCase()}
                       </div>
-                      {agent.title && <div className="truncate text-[10px] text-white/45">{agent.title}</div>}
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-bold text-white/90" style={{ fontFamily: "monospace" }}>
+                          {agent.name.replace(" Agent", "")}
+                        </div>
+                        {agent.title && <div className="truncate text-[10px] text-white/45">{agent.title}</div>}
+                      </div>
+                      <StatusBadge status={agent.status} />
                     </div>
-                    <StatusBadge status={agent.status} />
-                  </div>
 
-                  <div className="font-mono text-[10px] text-white/40">
-                    {agent.lastHeartbeatAt ? `Last active ${timeAgo(agent.lastHeartbeatAt)}` : "Never active"}
-                  </div>
+                    <div className="font-mono text-[10px] text-white/40">
+                      {agent.lastHeartbeatAt ? `Last active ${timeAgo(agent.lastHeartbeatAt)}` : "Never active"}
+                    </div>
 
-                  <div className="mt-auto flex items-center justify-between border-t border-white/[0.05] pt-1">
-                    <HeartbeatTriggerButton agentId={agent.id} agentName={agent.name} companyId={selectedCompanyId} />
-                    <Link
-                      to={agentUrl(agent)}
-                      className="text-[10px] font-bold uppercase tracking-widest no-underline transition-opacity hover:opacity-80"
-                      style={{ color: GOLD, fontFamily: "monospace" }}
-                    >
-                      View →
-                    </Link>
+                    <div className="mt-auto flex items-center justify-between border-t border-white/[0.05] pt-1" onClick={(e) => e.preventDefault()}>
+                      <HeartbeatTriggerButton agentId={agent.id} agentName={agent.name} companyId={selectedCompanyId} />
+                      <span
+                        className="text-[10px] font-bold uppercase tracking-widest"
+                        style={{ color: GOLD, fontFamily: "monospace" }}
+                      >
+                        View →
+                      </span>
+                    </div>
                   </div>
-                </div>
+                </Link>
               </motion.div>
             );
           })}

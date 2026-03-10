@@ -18,6 +18,9 @@ import {
     Clock,
     Wrench,
     NotebookPen,
+    History,
+    Target,
+    Network,
 } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useCompany } from '@/context/CompanyContext';
@@ -35,14 +38,17 @@ export function Sidebar() {
     const { selectedCompanyId } = useCompany();
 
     const navItems = useMemo<NavItem[]>(() => [
-        { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-        { to: '/issues', label: 'Issues', icon: CircleDotDashed },
-        { to: '/agents', label: 'Agents', icon: Bot },
-        { to: '/crons', label: 'Crons', icon: Clock },
-        { to: '/costs', label: 'Costs', icon: DollarSign },
-        { to: '/approvals', label: 'Approvals', icon: ShieldCheck },
-        { to: '/projects', label: 'Projects', icon: FileCode },
-        { to: '/journal', label: 'Journal', icon: NotebookPen },
+        { to: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard, exact: true },
+        { to: '/agents',     label: 'Agents',     icon: Bot },
+        { to: '/issues',     label: 'Issues',     icon: CircleDotDashed },
+        { to: '/projects',   label: 'Projects',   icon: FileCode },
+        { to: '/goals',      label: 'Goals',      icon: Target },
+        { to: '/activity',   label: 'Activity',   icon: History },
+        { to: '/approvals',  label: 'Approvals',  icon: ShieldCheck },
+        { to: '/costs',      label: 'Costs',      icon: DollarSign },
+        { to: '/org',        label: 'Org Chart',  icon: Network },
+        { to: '/crons',      label: 'Crons',      icon: Clock },
+        { to: '/journal',    label: 'Journal',    icon: NotebookPen },
         { to: '/tool-forge', label: 'Tool Forge', icon: Wrench },
     ], []);
 
