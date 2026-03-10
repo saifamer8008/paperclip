@@ -17,6 +17,12 @@ function dateParams(from?: string, to?: string): string {
   return qs ? `?${qs}` : "";
 }
 
+export interface CostByDay {
+  date: string;      // "Mar 1"
+  costCents: number;
+  cost: number;      // costCents / 100 (for recharts)
+}
+
 export const costsApi = {
   summary: (companyId: string, from?: string, to?: string) =>
     api.get<CostSummary>(`/companies/${companyId}/costs/summary${dateParams(from, to)}`),
@@ -24,4 +30,9 @@ export const costsApi = {
     api.get<CostByAgent[]>(`/companies/${companyId}/costs/by-agent${dateParams(from, to)}`),
   byProject: (companyId: string, from?: string, to?: string) =>
     api.get<CostByProject[]>(`/companies/${companyId}/costs/by-project${dateParams(from, to)}`),
+  byDay: (companyId: string, days?: number, from?: string, to?: string) => {
+    const qs = dateParams(from, to);
+    const sep = qs ? "&" : "?";
+    return api.get<CostByDay[]>(`/companies/${companyId}/costs/by-day?days=${days ?? 7}${qs ? sep + qs.slice(1) : ""}`);
+  },
 };

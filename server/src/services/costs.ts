@@ -153,6 +153,53 @@ export function costService(db: Db) {
       });
     },
 
+    byDay: async (companyId: string, days: number = 7, range?: CostDateRange) => {
+      const conditions: ReturnType<typeof eq>[] = [eq(costEvents.companyId, companyId)];
+
+      if (range?.from) {
+        conditions.push(gte(costEvents.occurredAt, range.from));
+      } else {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - days);
+        conditions.push(gte(costEvents.occurredAt, cutoff));
+      }
+      if (range?.to) conditions.push(lte(costEvents.occurredAt, range.to));
+
+      const rows = await db
+        .select({
+          day: sql<string>`DATE(${costEvents.occurredAt})`,
+          costCents: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`,
+        })
+        .from(costEvents)
+        .where(and(...conditions))
+        .groupBy(sql`DATE(${costEvents.occurredAt})`)
+        .orderBy(sql`DATE(${costEvents.occurredAt}) asc`);
+
+      // Build a full date range filling missing days with 0
+      const startDate = range?.from ?? (() => { const d = new Date(); d.setDate(d.getDate() - days); return d; })();
+      const endDate = range?.to ?? new Date();
+      const rowMap = new Map(rows.map((r) => [r.day, r.costCents]));
+
+      const result: { date: string; costCents: number; cost: number }[] = [];
+      const cur = new Date(startDate);
+      cur.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+
+      while (cur <= end) {
+        const key = cur.toISOString().slice(0, 10); // "YYYY-MM-DD"
+        const costCents = rowMap.get(key) ?? 0;
+        result.push({
+          date: cur.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+          costCents,
+          cost: costCents / 100,
+        });
+        cur.setDate(cur.getDate() + 1);
+      }
+
+      return result;
+    },
+
     byProject: async (companyId: string, range?: CostDateRange) => {
       const issueIdAsText = sql<string>`${issues.id}::text`;
       const runProjectLinks = db

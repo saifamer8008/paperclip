@@ -62,6 +62,16 @@ export function costRoutes(db: Db) {
     res.json(rows);
   });
 
+  router.get("/companies/:companyId/costs/by-day", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    const rawDays = parseInt(req.query.days as string, 10);
+    const days = isNaN(rawDays) ? 7 : Math.min(rawDays, 30);
+    const range = parseDateRange(req.query);
+    const rows = await costs.byDay(companyId, days, range);
+    res.json(rows);
+  });
+
   router.get("/companies/:companyId/costs/by-project", async (req, res) => {
     const companyId = req.params.companyId as string;
     assertCompanyAccess(req, companyId);

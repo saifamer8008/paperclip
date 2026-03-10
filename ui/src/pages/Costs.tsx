@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { costsApi } from "../api/costs";
+import type { CostByDay } from "../api/costs";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
@@ -101,25 +102,21 @@ export function Costs() {
     enabled: !!selectedCompanyId,
   });
 
-  // Mock trend data generation since we don't have access to raw daily cost events from the API here
-  // In a real scenario, the API would return time-series data for the chart.
+  const { data: chartByDay } = useQuery({
+    queryKey: [...queryKeys.costs(selectedCompanyId!, from || undefined, to || undefined), 'byDay'],
+    queryFn: () => costsApi.byDay(
+      selectedCompanyId!,
+      preset === '7d' ? 7 : preset === '30d' ? 30 : 7,
+      from || undefined,
+      to || undefined,
+    ),
+    enabled: !!selectedCompanyId,
+  });
+
   const chartData = useMemo(() => {
-     if (!data?.summary.spendCents) return [];
-     // distribute total spend across 7 fake days for the visual
-     const total = data.summary.spendCents / 100;
-     const days = 7;
-     const avg = total / days;
-     return Array.from({length: days}).map((_, i) => {
-         const date = new Date();
-         date.setDate(date.getDate() - (days - 1 - i));
-         // add some random noise around the average
-         const cost = Math.max(0, avg + (Math.random() - 0.5) * avg * 0.5);
-         return {
-             date: date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-             cost: cost
-         }
-     });
-  }, [data]);
+    if (!chartByDay?.length) return [];
+    return chartByDay.map((d: CostByDay) => ({ date: d.date, cost: d.cost }));
+  }, [chartByDay]);
 
 
   if (!selectedCompanyId) {
