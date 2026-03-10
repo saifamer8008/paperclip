@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Wrench, Zap, Bot, FileText, Wifi, LucideIcon } from 'lucide-react';
+import { HudPageShell } from '@/components/HudPageShell';
 import { useQuery } from '@tanstack/react-query';
 
 // ─────────────────────────────────────────────
@@ -77,7 +78,9 @@ export function ToolForge() {
 
 
   return (
-    <div className="text-white/90" style={{ fontFamily: "'Space Mono', 'Courier New', monospace" }}>
+    <HudPageShell icon={Wrench} title="Tool Forge" subtitle="Build and install skills">
+      {/* legacy inner wrapper kept for layout compatibility */}
+      <div className="text-white/90" style={{ fontFamily: "'Space Mono', 'Courier New', monospace" }}>
       <h1 className="flex items-center gap-3 text-lg font-black tracking-widest uppercase mb-6" style={{ color: GOLD }}>
         <Wrench className="w-5 h-5" />
         Tool Forge & Settings
@@ -165,7 +168,8 @@ export function ToolForge() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </HudPageShell>
   );
 }
 
