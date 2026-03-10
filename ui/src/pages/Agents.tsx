@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Link, useNavigate, useLocation } from "@/lib/router";
+import { Link, useNavigate, useSearch } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { agentsApi } from "../api/agents";
 import { useCompany } from "../context/CompanyContext";
@@ -9,28 +9,18 @@ import { queryKeys } from "../lib/queryKeys";
 import { StatusBadge } from "../components/StatusBadge";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
-import { HudPageShell, HudButton, HudTabs } from "../components/HudPageShell";
+import { HudPageShell, HudButton } from "../components/HudPageShell";
 import { agentUrl } from "../lib/utils";
 import { timeAgo } from "../lib/timeAgo";
-import { GlassCard } from "@/components/ui/glass-card";
-import { Bot, Plus, Play, Loader2, Zap } from "lucide-react";
+import { AgentOffice } from "@/components/AgentOffice";
+import { Bot, Plus, Loader2, Zap } from "lucide-react";
 import { type Agent } from "@paperclipai/shared";
 import { motion } from "framer-motion";
 import { useToast } from "../context/ToastContext";
 
 const GOLD = "#C9A84C";
 
-type FilterTab = "all" | "active" | "paused" | "error";
-
-function filterAgents(agents: Agent[], tab: FilterTab): Agent[] {
-  if (tab === "all") return agents;
-  return agents.filter((a) => {
-    if (tab === "active") return a.status === "running" || a.status === "idle";
-    if (tab === "paused") return a.status === "paused";
-    if (tab === "error") return a.status === "error";
-    return true;
-  });
-}
+type View = "office" | "list";
 
 const STATUS_COLOR: Record<string, string> = {
   running: "#34d399", idle: "#818cf8", error: "#f87171",
@@ -76,9 +66,8 @@ export function Agents() {
   const { openNewAgent } = useDialog();
   const { setBreadcrumbs } = useBreadcrumbs();
   const navigate = useNavigate();
-  const location = useLocation();
-  const pathSegment = location.pathname.split("/").pop() ?? "all";
-  const tab: FilterTab = (["all", "active", "paused", "error"] as FilterTab[]).includes(pathSegment as FilterTab) ? (pathSegment as FilterTab) : "all";
+  const search = useSearch();
+  const view: View = search.view === "list" ? "list" : "office";
 
   const { data: agents, isLoading, error } = useQuery({
     queryKey: queryKeys.agents.list(selectedCompanyId!),
@@ -89,16 +78,26 @@ export function Agents() {
 
   useEffect(() => { setBreadcrumbs([{ label: "Agents" }]); }, [setBreadcrumbs]);
 
-  const filteredAgents = useMemo(() => filterAgents(agents ?? [], tab), [agents, tab]);
+  const setView = (newView: View) => {
+    navigate({ to: '/agents', search: { view: newView }, replace: true });
+  };
 
   if (!selectedCompanyId) return <EmptyState icon={Bot} message="Select a company to view agents." />;
   if (isLoading) return <PageSkeleton variant="list" />;
 
-  const tabItems = (["all", "active", "paused", "error"] as FilterTab[]).map((t) => ({
-    key: t,
-    label: t.charAt(0).toUpperCase() + t.slice(1),
-    count: t === "all" ? (agents?.length ?? 0) : filterAgents(agents ?? [], t).length,
-  }));
+  const TabButton = ({ active, children, onClick }: { active: boolean; children: React.ReactNode; onClick: () => void }) => (
+    <button
+      onClick={onClick}
+      className="px-4 py-2 text-xs font-bold tracking-widest uppercase rounded-md transition-all"
+      style={{
+        color: active ? GOLD : "rgba(255,255,255,0.4)",
+        border: active ? `1px solid ${GOLD}` : "1px solid transparent",
+        backgroundColor: active ? "rgba(201, 168, 76, 0.1)" : "transparent",
+      }}
+    >
+      {children}
+    </button>
+  );
 
   return (
     <HudPageShell
@@ -111,11 +110,10 @@ export function Agents() {
         </HudButton>
       }
       tabs={
-        <HudTabs
-          tabs={tabItems}
-          value={tab}
-          onChange={(k) => navigate(`/agents/${k}`)}
-        />
+        <div className="flex items-center gap-2">
+          <TabButton active={view === "office"} onClick={() => setView("office")}>Office</TabButton>
+          <TabButton active={view === "list"} onClick={() => setView("list")}>List</TabButton>
+        </div>
       }
     >
       {error && <p className="text-xs text-destructive font-mono">{(error as Error).message}</p>}
@@ -124,14 +122,20 @@ export function Agents() {
         <EmptyState icon={Bot} message="Create your first agent to get started." action="New Agent" onAction={openNewAgent} />
       )}
 
-      {filteredAgents.length > 0 && (
+      {view === "office" && agents && selectedCompanyId && (
+        <div className="w-full max-w-full">
+          <AgentOffice agents={agents} companyId={selectedCompanyId} />
+        </div>
+      )}
+
+      {view === "list" && agents && agents.length > 0 && (
         <motion.div
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
           variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
           initial="hidden"
           animate="visible"
         >
-          {filteredAgents.map((agent) => {
+          {agents.map((agent) => {
             const color = STATUS_COLOR[agent.status] ?? "#6b7280";
             return (
               <motion.div key={agent.id} variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } }}>
@@ -143,7 +147,6 @@ export function Agents() {
                     boxShadow: agent.status === "running" ? `0 0 16px ${color}22` : undefined,
                   }}
                 >
-                  {/* header */}
                   <div className="flex items-center gap-3">
                     <div
                       className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 font-black text-base"
@@ -159,13 +162,9 @@ export function Agents() {
                     </div>
                     <StatusBadge status={agent.status} />
                   </div>
-
-                  {/* meta */}
                   <div className="text-[10px] text-white/40 font-mono">
                     {agent.lastHeartbeatAt ? `Last active ${timeAgo(agent.lastHeartbeatAt)}` : "Never active"}
                   </div>
-
-                  {/* actions */}
                   <div className="flex items-center justify-between mt-auto pt-1 border-t border-white/[0.05]">
                     <HeartbeatTriggerButton agentId={agent.id} agentName={agent.name} companyId={selectedCompanyId!} />
                     <Link

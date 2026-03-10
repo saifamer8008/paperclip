@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { formatCents, cn } from "../lib/utils";
 import { timeAgo } from "../lib/timeAgo";
 import { type Agent, type HeartbeatRun } from "@paperclipai/shared";
-import { CheckCircle2, XCircle, Clock, Loader2, Slash, Timer, Play, Bot, Zap, Terminal, X } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, Loader2, Slash, Timer, Play, Bot, Zap, Terminal, X, PauseCircle, PlayCircle, StopCircle, RefreshCw } from 'lucide-react';
 import { useToast } from "../context/ToastContext";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -107,6 +107,119 @@ function HeartbeatTriggerButton({ agentId, agentName, companyId }: { agentId: st
 }
 
 
+function AgentActionButtons({ agent, companyId }: { agent: Agent; companyId: string }) {
+  const { pushToast } = useToast();
+  const queryClient = useQueryClient();
+
+  const onSuccess = (msg: string) => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.id) });
+    pushToast({ title: msg, tone: "success" });
+  };
+  const onError = (err: unknown) => {
+    pushToast({ title: "Action failed", body: err instanceof Error ? err.message : "Unknown error", tone: "error" });
+  };
+
+  const pause = useMutation({
+    mutationFn: () => agentsApi.pause(agent.id, companyId || undefined),
+    onSuccess: () => onSuccess("Agent paused"),
+    onError,
+  });
+
+  const resume = useMutation({
+    mutationFn: () => agentsApi.resume(agent.id, companyId || undefined),
+    onSuccess: () => onSuccess("Agent resumed"),
+    onError,
+  });
+
+  const terminate = useMutation({
+    mutationFn: () => agentsApi.terminate(agent.id, companyId || undefined),
+    onSuccess: () => onSuccess("Agent terminated"),
+    onError,
+  });
+
+  const resetCtx = useMutation({
+    mutationFn: () => agentsApi.resetSession(agent.id, null, companyId || undefined),
+    onSuccess: () => onSuccess("Session context reset"),
+    onError,
+  });
+
+  const btnBase: React.CSSProperties = {
+    display: "flex", alignItems: "center", gap: "6px",
+    padding: "6px 12px", borderRadius: "8px", border: "1px solid",
+    fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em",
+    textTransform: "uppercase", cursor: "pointer", fontFamily: "monospace",
+    background: "rgba(255,255,255,0.05)",
+    borderColor: "rgba(255,255,255,0.1)",
+    color: "rgba(255,255,255,0.6)",
+  };
+
+  const btnDanger: React.CSSProperties = {
+    ...btnBase,
+    background: "rgba(248,113,113,0.08)",
+    borderColor: "rgba(248,113,113,0.4)",
+    color: "#f87171",
+  };
+
+  const btnGold: React.CSSProperties = {
+    ...btnBase,
+    background: `${GOLD}0f`,
+    borderColor: `${GOLD}33`,
+    color: GOLD,
+  };
+
+  const isTerminated = agent.status === "terminated";
+  const canPause = agent.status === "running" || agent.status === "idle";
+  const canResume = agent.status === "paused";
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {canPause && (
+        <button
+          style={btnBase}
+          disabled={pause.isPending}
+          onClick={() => pause.mutate()}
+        >
+          {pause.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PauseCircle className="h-3.5 w-3.5" />}
+          Pause
+        </button>
+      )}
+      {canResume && (
+        <button
+          style={btnBase}
+          disabled={resume.isPending}
+          onClick={() => resume.mutate()}
+        >
+          {resume.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}
+          Resume
+        </button>
+      )}
+      {!isTerminated && (
+        <button
+          style={btnDanger}
+          disabled={terminate.isPending}
+          onClick={() => {
+            if (window.confirm("Terminate this agent? This cannot be undone.")) {
+              terminate.mutate();
+            }
+          }}
+        >
+          {terminate.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <StopCircle className="h-3.5 w-3.5" />}
+          Terminate
+        </button>
+      )}
+      <button
+        style={btnGold}
+        disabled={resetCtx.isPending}
+        title="Clears the agent's active session context"
+        onClick={() => resetCtx.mutate()}
+      >
+        {resetCtx.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+        Reset Context
+      </button>
+    </div>
+  );
+}
+
 export function AgentDetail() {
   const { agentId } = useParams<{ agentId: string }>();
   const { selectedCompanyId } = useCompany();
@@ -186,6 +299,9 @@ export function AgentDetail() {
           </span>
         )}
       </div>
+
+      {/* Agent action buttons */}
+      <AgentActionButtons agent={agent} companyId={selectedCompanyId ?? ""} />
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">

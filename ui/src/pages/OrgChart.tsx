@@ -1,18 +1,21 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useNavigate } from "@/lib/router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { agentsApi, type OrgNode } from "../api/agents";
 import { useCompany } from "../context/CompanyContext";
+import { useToast } from "@/context/ToastContext";
+import { AnimatePresence, motion } from "framer-motion";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { agentUrl } from "../lib/utils";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { HudPageShell } from "../components/HudPageShell";
-import { Network } from "lucide-react";
+import { Network, X } from "lucide-react";
 import { AGENT_ROLE_LABELS, type Agent } from "@paperclipai/shared";
 import { GlassCard } from "@/components/ui/glass-card";
 import { StatusBadge } from "@/components/StatusBadge";
+import { HudButton } from "@/components/ui/hud-button";
 
 // Layout constants
 const CARD_W = 200;
@@ -121,6 +124,7 @@ export function OrgChart() {
   const { selectedCompanyId } = useCompany();
   const { setBreadcrumbs } = useBreadcrumbs();
   const navigate = useNavigate();
+  const [selectedAgent, setSelectedAgent] = useState<LayoutNode | null>(null);
 
   const { data: orgTree, isLoading } = useQuery({
     queryKey: queryKeys.org(selectedCompanyId!),
@@ -366,7 +370,7 @@ export function OrgChart() {
                   width: CARD_W,
                   minHeight: CARD_H,
                 }}
-                onClick={() => navigate(agent ? agentUrl(agent) : `/agents/${node.id}`)}
+                onClick={() => setSelectedAgent(node)}
               >
                   <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500/20 to-emerald-700/20 flex items-center justify-center shrink-0">
@@ -384,6 +388,15 @@ export function OrgChart() {
             );
           })}
         </div>
+        <AnimatePresence>
+          {selectedAgent && (
+            <AgentSidePanel
+              agent={selectedAgent}
+              onClose={() => setSelectedAgent(null)}
+              companyId={selectedCompanyId!}
+            />
+          )}
+        </AnimatePresence>
       </div>
     </HudPageShell>
   );
@@ -393,4 +406,111 @@ const roleLabels = AGENT_ROLE_LABELS as Record<string, string>;
 
 function roleLabel(role: string): string {
   return roleLabels[role] ?? role;
+}
+
+// ── Side Panel Component ────────────────────────────────────────────────
+
+interface AgentSidePanelProps {
+  agent: LayoutNode;
+  companyId: string;
+  onClose: () => void;
+}
+
+function AgentSidePanel({ agent, companyId, onClose }: AgentSidePanelProps) {
+  const navigate = useNavigate();
+  const { addToast } = useToast();
+
+  const { mutate: invoke, isLoading: isInvoking } = useMutation({
+    mutationFn: (command: "heartbeat" | "ping") =>
+      agentsApi.invoke(agent.id, companyId, command),
+    onSuccess: (_, command) => {
+      addToast({
+        title: "Command Sent",
+        message: `Agent ${agent.name} was sent the '${command}' command.`,
+        type: "success",
+      });
+      onClose();
+    },
+    onError: (err: any, command) => {
+      addToast({
+        title: "Command Failed",
+        message: `Failed to send '${command}' to ${agent.name}: ${err.message}`,
+        type: "error",
+      });
+    },
+  });
+
+  return (
+    <>
+      {/* Overlay */}
+      <motion.div
+        className="absolute inset-0 bg-black/50 z-20"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      />
+
+      {/* Panel */}
+      <motion.div
+        className="absolute top-0 right-0 h-full w-80 bg-background/80 backdrop-blur-xl border-l border-border z-30 flex flex-col"
+        initial={{ x: "100%" }}
+        animate={{ x: "0%" }}
+        exit={{ x: "100%" }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+      >
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h3 className="font-semibold">Agent Details</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex-grow p-4 flex flex-col gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500/20 to-emerald-700/20 flex items-center justify-center shrink-0">
+              <span className="text-primary font-semibold text-xl">{agent.name.charAt(0)}</span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold">{agent.name}</span>
+                {agent.status === 'running' && (
+                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" title="Running" />
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">{roleLabel(agent.role)}</p>
+            </div>
+          </div>
+
+          <StatusBadge status={agent.status} className="self-start" />
+
+          <div className="border-t border-border mt-2 pt-4 flex flex-col gap-2">
+            <HudButton
+              variant="default"
+              onClick={() => invoke("ping")}
+              disabled={isInvoking}
+              className="w-full"
+            >
+              ◈ PING
+            </HudButton>
+            <HudButton
+              variant="outline"
+              onClick={() => navigate(`/agents/${agent.id}`)}
+              className="w-full"
+            >
+              ▶ DETAIL
+            </HudButton>
+            <HudButton
+              variant="destructive"
+              onClick={() => invoke("heartbeat")}
+              disabled={isInvoking}
+              className="w-full"
+            >
+              ◈ RUN NOW
+            </HudButton>
+          </div>
+        </div>
+      </motion.div>
+    </>
+  );
 }

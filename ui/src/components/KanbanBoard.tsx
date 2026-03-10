@@ -25,6 +25,9 @@ interface KanbanBoardProps {
   agents?: Agent[];
   liveIssueIds?: Set<string>;
   onUpdateIssue?: (id: string, data: Record<string, unknown>) => void;
+  isBulkSelect?: boolean;
+  selectedIssues?: Set<string>;
+  onToggleIssueSelection?: (id: string) => void;
 }
 
 const priorityDotColor = (priority: string) => {
@@ -35,7 +38,19 @@ const priorityDotColor = (priority: string) => {
     }
 };
 
-function KanbanColumn({ status, issues }: { status: string; issues: Issue[] }) {
+function KanbanColumn({
+  status,
+  issues,
+  isBulkSelect,
+  selectedIssues,
+  onToggleIssueSelection
+}: {
+  status: string;
+  issues: Issue[];
+  isBulkSelect?: boolean;
+  selectedIssues?: Set<string>;
+  onToggleIssueSelection?: (id: string) => void;
+}) {
   const { setNodeRef } = useDroppable({ id: status });
 
   return (
@@ -51,7 +66,13 @@ function KanbanColumn({ status, issues }: { status: string; issues: Issue[] }) {
       <div ref={setNodeRef} className="bg-card/50 rounded-2xl p-3 min-h-[200px] space-y-2">
         <SortableContext items={issues.map(i => i.id)} strategy={verticalListSortingStrategy}>
           {issues.map(issue => (
-            <KanbanCard key={issue.id} issue={issue} />
+            <KanbanCard
+              key={issue.id}
+              issue={issue}
+              isBulkSelect={isBulkSelect}
+              isSelected={selectedIssues?.has(issue.id)}
+              onToggleSelection={onToggleIssueSelection}
+            />
           ))}
         </SortableContext>
       </div>
@@ -59,33 +80,83 @@ function KanbanColumn({ status, issues }: { status: string; issues: Issue[] }) {
   );
 }
 
-function KanbanCard({ issue, isOverlay }: { issue: Issue; isOverlay?: boolean }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: issue.id, data: { issue } });
+function KanbanCard({
+  issue,
+  isOverlay,
+  isBulkSelect,
+  isSelected,
+  onToggleSelection,
+}: {
+  issue: Issue;
+  isOverlay?: boolean;
+  isBulkSelect?: boolean;
+  isSelected?: boolean;
+  onToggleSelection?: (id: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: issue.id,
+    data: { issue },
+    disabled: isBulkSelect,
+  });
 
   const style = { transform: CSS.Transform.toString(transform), transition };
 
+  const cardContent = (
+    <GlassCard
+      className={cn(
+        "p-3 cursor-grab active:cursor-grabbing",
+        isDragging && !isOverlay && "opacity-30",
+        isOverlay && "shadow-lg",
+        isBulkSelect && "cursor-pointer",
+        isSelected && "ring-2 ring-primary"
+      )}
+      onClick={(e) => {
+        if (isBulkSelect) {
+          e.preventDefault();
+          onToggleSelection?.(issue.id);
+        }
+      }}
+    >
+      <div className="flex items-start gap-2">
+        {isBulkSelect && (
+          <input
+            type="checkbox"
+            checked={isSelected}
+            readOnly
+            className="mt-1"
+          />
+        )}
+        <div className="flex-1">
+          <p className="font-medium text-sm mb-2">{issue.title}</p>
+          <div className="flex items-center gap-2">
+            <span className={cn("w-2 h-2 rounded-full", priorityDotColor(issue.priority))} />
+            <span className="text-xs text-muted-foreground">{timeAgo(issue.updatedAt)}</span>
+          </div>
+        </div>
+      </div>
+    </GlassCard>
+  );
+
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      {isBulkSelect ? (
+        <div className="text-inherit no-underline">{cardContent}</div>
+      ) : (
         <Link to={`/issues/${issue.identifier ?? issue.id}`} className="block no-underline text-inherit">
-            <GlassCard
-                className={cn(
-                    "p-3 cursor-grab active:cursor-grabbing",
-                    isDragging && !isOverlay && "opacity-30",
-                    isOverlay && "shadow-lg"
-                )}
-            >
-                <p className="font-medium text-sm mb-2">{issue.title}</p>
-                <div className="flex items-center gap-2">
-                    <span className={cn("w-2 h-2 rounded-full", priorityDotColor(issue.priority))} />
-                    <span className="text-xs text-muted-foreground">{timeAgo(issue.updatedAt)}</span>
-                </div>
-            </GlassCard>
+          {cardContent}
         </Link>
+      )}
     </div>
   );
 }
 
-export function KanbanBoard({ issues, onUpdateIssue }: KanbanBoardProps) {
+export function KanbanBoard({
+  issues,
+  onUpdateIssue,
+  isBulkSelect,
+  selectedIssues,
+  onToggleIssueSelection
+}: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -105,10 +176,12 @@ export function KanbanBoard({ issues, onUpdateIssue }: KanbanBoardProps) {
   const activeIssue = useMemo(() => (activeId ? issues.find(i => i.id === activeId) : null), [activeId, issues]);
 
   function handleDragStart(event: DragStartEvent) {
+    if (isBulkSelect) return;
     setActiveId(event.active.id as string);
   }
 
   function handleDragEnd(event: DragEndEvent) {
+    if (isBulkSelect) return;
     setActiveId(null);
     const { active, over } = event;
     if (!over) return;
@@ -136,7 +209,14 @@ export function KanbanBoard({ issues, onUpdateIssue }: KanbanBoardProps) {
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4">
         {boardStatuses.map(status => (
-          <KanbanColumn key={status} status={status} issues={columnIssues[status] ?? []} />
+          <KanbanColumn
+            key={status}
+            status={status}
+            issues={columnIssues[status] ?? []}
+            isBulkSelect={isBulkSelect}
+            selectedIssues={selectedIssues}
+            onToggleIssueSelection={onToggleIssueSelection}
+          />
         ))}
       </div>
       <DragOverlay>

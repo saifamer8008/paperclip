@@ -53,6 +53,8 @@ export function IssuesList({
   const { openNewIssue } = useDialog();
   const [search, setSearch] = useState(initialSearch);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [isBulkSelect, setIsBulkSelect] = useState(false);
+  const [selectedIssues, setSelectedIssues] = useState(new Set<string>());
 
   const filtered = useMemo(() => {
     if (!search.trim()) return issues;
@@ -68,6 +70,18 @@ export function IssuesList({
   function handleSearch(val: string) {
     setSearch(val);
     onSearchChange?.(val);
+  }
+
+  function toggleIssueSelection(issueId: string) {
+    setSelectedIssues(prev => {
+      const next = new Set(prev);
+      if (next.has(issueId)) {
+        next.delete(issueId);
+      } else {
+        next.add(issueId);
+      }
+      return next;
+    });
   }
 
   function agentAvatar(agentId: string | null) {
@@ -104,6 +118,15 @@ export function IssuesList({
               </button>
             ))}
           </div>
+          <HudButton
+            variant={isBulkSelect ? "primary" : "default"}
+            onClick={() => {
+              setIsBulkSelect(!isBulkSelect);
+              setSelectedIssues(new Set());
+            }}
+          >
+            BULK SELECT
+          </HudButton>
           <HudButton onClick={() => openNewIssue()}>
             <Plus className="h-3 w-3" /> New Issue
           </HudButton>
@@ -145,6 +168,9 @@ export function IssuesList({
           agents={agents}
           liveIssueIds={liveIssueIds}
           onUpdateIssue={onUpdateIssue}
+          isBulkSelect={isBulkSelect}
+          selectedIssues={selectedIssues}
+          onToggleIssueSelection={toggleIssueSelection}
         />
       ) : (
         <AnimatePresence>
@@ -190,6 +216,29 @@ export function IssuesList({
           </motion.div>
         </AnimatePresence>
       )}
+      <AnimatePresence>
+        {isBulkSelect && selectedIssues.size > 0 && (
+            <motion.div
+                className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50"
+                initial={{ y: 100, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 100, opacity: 0 }}
+            >
+                <GlassCard className="flex items-center gap-4 p-3">
+                    <span className="text-sm font-semibold">{selectedIssues.size} selected</span>
+                    <HudButton variant="primary" onClick={() => {
+                        selectedIssues.forEach(id => onUpdateIssue?.(id, { status: "done" }));
+                        setSelectedIssues(new Set());
+                    }}>
+                        Mark Done
+                    </HudButton>
+                    <HudButton onClick={() => alert("Assign Agent coming soon!")}>
+                        Assign Agent
+                    </HudButton>
+                </GlassCard>
+            </motion.div>
+        )}
+      </AnimatePresence>
     </HudPageShell>
   );
 }

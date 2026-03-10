@@ -16,8 +16,9 @@ import type { Agent, Issue } from "@paperclipai/shared";
 import {
   Zap, ExternalLink, Loader2, Package, DollarSign,
   AlertCircle, CheckCircle2, Clock, XCircle, Pause,
-  ChevronRight, Hash
+  ChevronRight, Hash, PauseCircle, PlayCircle, StopCircle, RefreshCw
 } from "lucide-react";
+import { agentsApi } from "@/api/agents";
 import { motion, AnimatePresence } from "framer-motion";
 
 // ─── palette ────────────────────────────────────────────────────────────────
@@ -120,6 +121,38 @@ interface PopoverProps {
 function AgentPopover({ agent, companyId, onClose, anchorRect, containerRect }: PopoverProps) {
   const navigate = useNavigate();
   const trigger = useHeartbeatTrigger(agent.id, agent.name, companyId);
+  const qc = useQueryClient();
+  const { pushToast } = useToast();
+
+  const onActionSuccess = (msg: string) => {
+    qc.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.id) });
+    qc.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
+    pushToast({ title: msg, tone: "success" });
+  };
+  const onActionError = (err: unknown) => {
+    pushToast({ title: "Action failed", body: err instanceof Error ? err.message : "Unknown error", tone: "error" });
+  };
+
+  const pauseMut = useMutation({
+    mutationFn: () => agentsApi.pause(agent.id, companyId || undefined),
+    onSuccess: () => onActionSuccess("Agent paused"),
+    onError: onActionError,
+  });
+  const resumeMut = useMutation({
+    mutationFn: () => agentsApi.resume(agent.id, companyId || undefined),
+    onSuccess: () => onActionSuccess("Agent resumed"),
+    onError: onActionError,
+  });
+  const terminateMut = useMutation({
+    mutationFn: () => agentsApi.terminate(agent.id, companyId || undefined),
+    onSuccess: () => onActionSuccess("Agent terminated"),
+    onError: onActionError,
+  });
+  const resetMut = useMutation({
+    mutationFn: () => agentsApi.resetSession(agent.id, null, companyId || undefined),
+    onSuccess: () => onActionSuccess("Session context reset"),
+    onError: onActionError,
+  });
 
   const { data: issues } = useQuery({
     queryKey: queryKeys.issues.list(companyId),
@@ -293,34 +326,87 @@ function AgentPopover({ agent, companyId, onClose, anchorRect, containerRect }: 
 
       {/* Action bar */}
       <div
-        className="flex items-center gap-1.5 px-3 py-2.5"
+        className="flex flex-col gap-1 px-3 py-2.5"
         style={{ borderTop: `1px solid rgba(255,255,255,0.06)`, background: "rgba(0,0,0,0.2)" }}
       >
-        <button
-          onClick={() => trigger.mutate()}
-          disabled={trigger.isPending || agent.status === "running"}
-          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40"
-          style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}33` }}
-        >
-          {trigger.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
-          Run
-        </button>
-        <button
-          onClick={() => navigate(`/agents/${agent.urlKey ?? agent.id}`)}
-          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
-          style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.09)" }}
-        >
-          <ExternalLink className="h-3 w-3" />
-          Detail
-        </button>
-        <button
-          onClick={() => navigate(`/issues?assigneeAgentId=${agent.id}`)}
-          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
-          style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.09)" }}
-        >
-          <Package className="h-3 w-3" />
-          Tasks
-        </button>
+        {/* Row 1: RUN / DETAIL / TASKS */}
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => trigger.mutate()}
+            disabled={trigger.isPending || agent.status === "running"}
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40"
+            style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}33` }}
+          >
+            {trigger.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+            Run
+          </button>
+          <button
+            onClick={() => navigate(`/agents/${agent.urlKey ?? agent.id}`)}
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
+            style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.09)" }}
+          >
+            <ExternalLink className="h-3 w-3" />
+            Detail
+          </button>
+          <button
+            onClick={() => navigate(`/issues?assigneeAgentId=${agent.id}`)}
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
+            style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.09)" }}
+          >
+            <Package className="h-3 w-3" />
+            Tasks
+          </button>
+        </div>
+        {/* Row 2: PAUSE / RESUME / TERMINATE / RESET */}
+        <div className="flex items-center gap-1.5">
+          {(agent.status === "running" || agent.status === "idle") && (
+            <button
+              onClick={() => pauseMut.mutate()}
+              disabled={pauseMut.isPending}
+              className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40"
+              style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.09)" }}
+            >
+              {pauseMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <PauseCircle className="h-3 w-3" />}
+              Pause
+            </button>
+          )}
+          {agent.status === "paused" && (
+            <button
+              onClick={() => resumeMut.mutate()}
+              disabled={resumeMut.isPending}
+              className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40"
+              style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.09)" }}
+            >
+              {resumeMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <PlayCircle className="h-3 w-3" />}
+              Resume
+            </button>
+          )}
+          {agent.status !== "terminated" && (
+            <button
+              onClick={() => {
+                if (window.confirm("Terminate this agent? This cannot be undone.")) {
+                  terminateMut.mutate();
+                }
+              }}
+              disabled={terminateMut.isPending}
+              className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40"
+              style={{ background: "rgba(248,113,113,0.08)", color: "#f87171", border: "1px solid rgba(248,113,113,0.4)" }}
+            >
+              {terminateMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <StopCircle className="h-3 w-3" />}
+              Terminate
+            </button>
+          )}
+          <button
+            onClick={() => resetMut.mutate()}
+            disabled={resetMut.isPending}
+            title="Clears the agent's active session context"
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40"
+            style={{ background: `${GOLD}0f`, color: GOLD, border: `1px solid ${GOLD}33` }}
+          >
+            {resetMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+            Reset
+          </button>
+        </div>
       </div>
     </motion.div>
   );
