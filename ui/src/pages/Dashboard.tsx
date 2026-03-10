@@ -18,13 +18,14 @@ import { timeAgo } from "../lib/timeAgo";
 import { cn, formatCents } from "../lib/utils";
 import {
   Bot, CircleDot, DollarSign, ShieldCheck, LayoutDashboard,
-  AlertTriangle, Activity, Wifi, Zap, Radio, X,
+  AlertTriangle, Activity, Wifi, Zap, Radio, X, CircleDotDashed, History,
 } from "lucide-react";
 import type { Agent, Issue } from "@paperclipai/shared";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Link } from "@/lib/router";
 import { GlassCard } from "@/components/ui/glass-card";
-import { AgentOffice } from "@/components/AgentOffice";
+import { costsApi } from "@/api/costs";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 
 // ─────────────────────────────────────────────
 //  LFG palette
@@ -423,6 +424,18 @@ export function Dashboard() {
     agents, activity, agentMap, entityNameMap, entityTitleMap,
   } = useDashboardData(selectedCompanyId ?? "");
 
+  const { data: costsByDay } = useQuery({
+    queryKey: ["costs", "byDay", selectedCompanyId],
+    queryFn: () => costsApi.byDay(selectedCompanyId!, 7),
+    enabled: !!selectedCompanyId,
+  });
+
+  const { data: recentIssues } = useQuery({
+    queryKey: [...queryKeys.issues.list(selectedCompanyId!), "dashboard-recent"],
+    queryFn: () => issuesApi.list(selectedCompanyId!),
+    enabled: !!selectedCompanyId,
+  });
+
   // Morning brief logic
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -536,27 +549,94 @@ export function Dashboard() {
           />
         </div>
 
-        {/* RIGHT: 2D Agent Office floor */}
-        <div className="flex-1 min-w-0">
-          <div
-            className="h-full rounded-xl p-3 space-y-2"
-            style={{
-              background: "rgba(0,0,0,0.3)",
-              border: `1px solid ${GOLD}22`,
-              minHeight: 480,
-            }}
-          >
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-1.5 text-[10px] font-black tracking-widest uppercase" style={{ color: GOLD }}>
-                <Activity className="h-2.5 w-2.5" /> Live Agent Office
-              </div>
-              <span className="text-[9px] font-bold tracking-widest px-2 py-0.5 rounded animate-pulse"
-                style={{ background: "rgba(52,211,153,0.1)", color: "#34d399", border: "1px solid rgba(52,211,153,0.25)" }}>
-                {runningAgents} ACTIVE
-              </span>
+        {/* RIGHT: Cost trend + Recent Issues + Recent Activity */}
+        <div className="flex-1 min-w-0 flex flex-col gap-3">
+
+          {/* Cost trend 7-day */}
+          <div className="rounded-xl p-3" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${GOLD}22` }}>
+            <div className="flex items-center gap-1.5 text-[10px] font-black tracking-widest uppercase mb-3" style={{ color: GOLD }}>
+              <DollarSign className="h-2.5 w-2.5" /> Cost Trend — 7 Days
             </div>
-            <AgentOffice agents={agents} companyId={selectedCompanyId!} />
+            {costsByDay && costsByDay.length > 0 ? (
+              <ResponsiveContainer width="100%" height={80}>
+                <AreaChart data={costsByDay} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                  <defs>
+                    <linearGradient id="costGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor={GOLD} stopOpacity={0.3} />
+                      <stop offset="95%" stopColor={GOLD} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="date" tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 9 }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{ background: "#111", border: `1px solid ${GOLD}44`, borderRadius: 8, fontSize: 11 }}
+                    formatter={(v: number) => [`$${(v / 100).toFixed(2)}`, "Cost"]}
+                  />
+                  <Area type="monotone" dataKey="costCents" stroke={GOLD} strokeWidth={1.5} fill="url(#costGrad)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-[10px] text-white/30 font-mono py-4 text-center">No cost data yet</p>
+            )}
           </div>
+
+          {/* Recent Issues */}
+          <div className="rounded-xl p-3" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${GOLD}22` }}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5 text-[10px] font-black tracking-widest uppercase" style={{ color: GOLD }}>
+                <CircleDotDashed className="h-2.5 w-2.5" /> Open Issues
+              </div>
+              <Link to="/issues" className="text-[10px] font-bold tracking-widest uppercase hover:opacity-70 transition-opacity" style={{ color: GOLD }}>
+                All →
+              </Link>
+            </div>
+            <div className="space-y-1">
+              {(recentIssues ?? [])
+                .filter(i => i.status !== "done" && i.status !== "cancelled")
+                .slice(0, 5)
+                .map(issue => (
+                  <Link
+                    key={issue.id}
+                    to={`/issues/${issue.id}`}
+                    className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors no-underline"
+                  >
+                    <span className="text-[11px] text-white/70 truncate font-mono">{issue.identifier ?? issue.id.slice(0,8)}</span>
+                    <span className="text-[11px] text-white/90 truncate flex-1">{issue.title}</span>
+                    <StatusBadge status={issue.status} />
+                  </Link>
+                ))}
+              {(!recentIssues || recentIssues.filter(i => i.status !== "done" && i.status !== "cancelled").length === 0) && (
+                <p className="text-[10px] text-white/30 font-mono py-2 text-center">No open issues</p>
+              )}
+            </div>
+          </div>
+
+          {/* Recent Activity */}
+          <div className="rounded-xl p-3" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${GOLD}22` }}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5 text-[10px] font-black tracking-widest uppercase" style={{ color: GOLD }}>
+                <History className="h-2.5 w-2.5" /> Recent Activity
+              </div>
+              <Link to="/activity" className="text-[10px] font-bold tracking-widest uppercase hover:opacity-70 transition-opacity" style={{ color: GOLD }}>
+                All →
+              </Link>
+            </div>
+            <div className="space-y-0.5">
+              {(activity ?? []).slice(0, 5).map((event) => (
+                <ActivityRow
+                  key={event.id}
+                  event={event}
+                  agentMap={agentMap}
+                  entityNameMap={entityNameMap}
+                  entityTitleMap={entityTitleMap}
+                  className="p-2 hover:bg-white/[0.02] transition-colors rounded-md"
+                />
+              ))}
+              {(activity ?? []).length === 0 && (
+                <p className="text-[10px] text-white/30 font-mono py-2 text-center">No recent activity</p>
+              )}
+            </div>
+          </div>
+
         </div>
 
       </div>
