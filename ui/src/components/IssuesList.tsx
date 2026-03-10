@@ -6,10 +6,11 @@ import { timeAgo } from "../lib/timeAgo";
 import { StatusBadge } from "../components/StatusBadge";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
+import { HudPageShell, HudButton } from "../components/HudPageShell";
 import { GlassCard } from "@/components/ui/glass-card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { CircleDot, Plus, List, Columns3 } from "lucide-react";
+import { CircleDot, Plus, List, Columns3, Search } from "lucide-react";
+
+const GOLD = "#C9A84C";
 import { KanbanBoard } from "./KanbanBoard";
 import type { Issue, Agent } from "@paperclipai/shared";
 import { motion, AnimatePresence } from "framer-motion";
@@ -81,43 +82,53 @@ export function IssuesList({
   }
 
   return (
-    <div className="space-y-4">
-      {/* Toolbar */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-xs">
-          <Input
+    <HudPageShell
+      icon={CircleDot}
+      title="Issues"
+      subtitle={`${filtered.length} issue${filtered.length !== 1 ? "s" : ""}`}
+      action={
+        <div className="flex items-center gap-2">
+          {/* View mode toggles */}
+          <div className="flex items-center rounded-lg overflow-hidden" style={{ border: `1px solid ${GOLD}33` }}>
+            {(["list", "board"] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className="flex items-center justify-center w-7 h-7 transition-all"
+                style={{
+                  background: viewMode === mode ? `${GOLD}22` : "transparent",
+                  color: viewMode === mode ? GOLD : "rgba(255,255,255,0.4)",
+                }}
+              >
+                {mode === "list" ? <List className="h-3.5 w-3.5" /> : <Columns3 className="h-3.5 w-3.5" />}
+              </button>
+            ))}
+          </div>
+          <HudButton onClick={() => openNewIssue()}>
+            <Plus className="h-3 w-3" /> New Issue
+          </HudButton>
+        </div>
+      }
+      tabs={
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none" style={{ color: "rgba(255,255,255,0.3)" }} />
+          <input
             placeholder="Search issues…"
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
-            className="h-8 pl-3 pr-3 text-sm"
+            className="w-full max-w-xs h-7 pl-7 pr-3 rounded-lg text-xs bg-transparent outline-none"
+            style={{
+              background: "rgba(0,0,0,0.3)",
+              border: `1px solid rgba(255,255,255,0.1)`,
+              color: "rgba(255,255,255,0.8)",
+              fontFamily: "monospace",
+            }}
           />
         </div>
-        <div className="ml-auto flex items-center gap-1">
-          <Button
-            size="sm"
-            variant={viewMode === "list" ? "secondary" : "ghost"}
-            className="h-8 w-8 p-0"
-            onClick={() => setViewMode("list")}
-          >
-            <List className="h-4 w-4" />
-          </Button>
-          <Button
-            size="sm"
-            variant={viewMode === "board" ? "secondary" : "ghost"}
-            className="h-8 w-8 p-0"
-            onClick={() => setViewMode("board")}
-          >
-            <Columns3 className="h-4 w-4" />
-          </Button>
-          <Button size="sm" variant="outline" className="h-8" onClick={() => openNewIssue()}>
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            New Issue
-          </Button>
-        </div>
-      </div>
-
+      }
+    >
       {isLoading && <PageSkeleton variant="issues-list" />}
-      {error && <p className="text-sm text-destructive">{error.message}</p>}
+      {error && <p className="text-xs text-destructive font-mono">{error.message}</p>}
 
       {!isLoading && !error && filtered.length === 0 && (
         <EmptyState
@@ -179,6 +190,6 @@ export function IssuesList({
           </motion.div>
         </AnimatePresence>
       )}
-    </div>
+    </HudPageShell>
   );
 }

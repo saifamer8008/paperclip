@@ -6,11 +6,11 @@ import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
+import { HudPageShell, HudTabs } from "../components/HudPageShell";
 import { formatCents, formatTokens } from "../lib/utils";
 import { Identity } from "../components/Identity";
 import { StatusBadge } from "../components/StatusBadge";
 import { GlassCard } from "@/components/ui/glass-card";
-import { Button } from "@/components/ui/button";
 import { DollarSign } from "lucide-react";
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -131,41 +131,39 @@ export function Costs() {
   }
 
   const presetKeys: DatePreset[] = ["mtd", "7d", "30d", "ytd", "all", "custom"];
+  const presetTabItems = presetKeys.map((p) => ({ key: p, label: PRESET_LABELS[p] }));
 
   return (
-    <div className="space-y-6">
-      {/* Date range selector */}
-      <div className="flex flex-wrap items-center gap-2">
-        {presetKeys.map((p) => (
-          <Button
-            key={p}
-            variant={preset === p ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setPreset(p)}
-          >
-            {PRESET_LABELS[p]}
-          </Button>
-        ))}
-        {preset === "custom" && (
-          <div className="flex items-center gap-2 ml-2">
-            <input
-              type="date"
-              value={customFrom}
-              onChange={(e) => setCustomFrom(e.target.value)}
-              className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground"
-            />
-            <span className="text-sm text-muted-foreground">to</span>
-            <input
-              type="date"
-              value={customTo}
-              onChange={(e) => setCustomTo(e.target.value)}
-              className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground"
-            />
-          </div>
-        )}
-      </div>
-
-      {error && <p className="text-sm text-destructive">{error.message}</p>}
+    <HudPageShell
+      icon={DollarSign}
+      title="Costs"
+      subtitle={data ? `${PRESET_LABELS[preset]} · ${formatCents(data.summary.spendCents)}` : "Loading..."}
+      tabs={
+        <div className="flex flex-col gap-2">
+          <HudTabs tabs={presetTabItems} value={preset} onChange={(k) => setPreset(k as DatePreset)} />
+          {preset === "custom" && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                className="h-7 rounded border text-xs px-2"
+                style={{ background: "rgba(0,0,0,0.4)", borderColor: "rgba(255,255,255,0.1)", color: "white" }}
+              />
+              <span className="text-[10px] text-white/40 font-mono">to</span>
+              <input
+                type="date"
+                value={customTo}
+                onChange={(e) => setCustomTo(e.target.value)}
+                className="h-7 rounded border text-xs px-2"
+                style={{ background: "rgba(0,0,0,0.4)", borderColor: "rgba(255,255,255,0.1)", color: "white" }}
+              />
+            </div>
+          )}
+        </div>
+      }
+    >
+      {error && <p className="text-xs text-destructive font-mono">{(error as Error).message}</p>}
 
       {data && (
         <>
@@ -317,6 +315,6 @@ export function Costs() {
           </div>
         </>
       )}
-    </div>
+    </HudPageShell>
   );
 }

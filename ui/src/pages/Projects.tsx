@@ -9,8 +9,8 @@ import { EntityRow } from "../components/EntityRow";
 import { StatusBadge } from "../components/StatusBadge";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
+import { HudPageShell, HudButton } from "../components/HudPageShell";
 import { formatDate, projectUrl } from "../lib/utils";
-import { Button } from "@/components/ui/button";
 import { Hexagon, Plus } from "lucide-react";
 
 export function Projects() {
@@ -18,9 +18,7 @@ export function Projects() {
   const { openNewProject } = useDialog();
   const { setBreadcrumbs } = useBreadcrumbs();
 
-  useEffect(() => {
-    setBreadcrumbs([{ label: "Projects" }]);
-  }, [setBreadcrumbs]);
+  useEffect(() => { setBreadcrumbs([{ label: "Projects" }]); }, [setBreadcrumbs]);
 
   const { data: projects, isLoading, error } = useQuery({
     queryKey: queryKeys.projects.list(selectedCompanyId!),
@@ -28,36 +26,31 @@ export function Projects() {
     enabled: !!selectedCompanyId,
   });
 
-  if (!selectedCompanyId) {
-    return <EmptyState icon={Hexagon} message="Select a company to view projects." />;
-  }
-
-  if (isLoading) {
-    return <PageSkeleton variant="list" />;
-  }
+  if (!selectedCompanyId) return <EmptyState icon={Hexagon} message="Select a company to view projects." />;
+  if (isLoading) return <PageSkeleton variant="list" />;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-end">
-        <Button size="sm" variant="outline" onClick={openNewProject}>
-          <Plus className="h-4 w-4 mr-1" />
-          Add Project
-        </Button>
-      </div>
+    <HudPageShell
+      icon={Hexagon}
+      title="Projects"
+      subtitle={`${projects?.length ?? 0} projects`}
+      action={
+        <HudButton onClick={openNewProject}>
+          <Plus className="h-3 w-3" /> Add Project
+        </HudButton>
+      }
+    >
+      {error && <p className="text-xs text-destructive font-mono">{(error as Error).message}</p>}
 
-      {error && <p className="text-sm text-destructive">{error.message}</p>}
-
-      {projects && projects.length === 0 && (
-        <EmptyState
-          icon={Hexagon}
-          message="No projects yet."
-          action="Add Project"
-          onAction={openNewProject}
-        />
+      {projects?.length === 0 && (
+        <EmptyState icon={Hexagon} message="No projects yet." action="Add Project" onAction={openNewProject} />
       )}
 
       {projects && projects.length > 0 && (
-        <div className="border border-border">
+        <div
+          className="rounded-xl overflow-hidden"
+          style={{ border: "1px solid rgba(255,255,255,0.07)" }}
+        >
           {projects.map((project) => (
             <EntityRow
               key={project.id}
@@ -67,9 +60,7 @@ export function Projects() {
               trailing={
                 <div className="flex items-center gap-3">
                   {project.targetDate && (
-                    <span className="text-xs text-muted-foreground">
-                      {formatDate(project.targetDate)}
-                    </span>
+                    <span className="text-[10px] text-white/40 font-mono">{formatDate(project.targetDate)}</span>
                   )}
                   <StatusBadge status={project.status} />
                 </div>
@@ -78,6 +69,6 @@ export function Projects() {
           ))}
         </div>
       )}
-    </div>
+    </HudPageShell>
   );
 }

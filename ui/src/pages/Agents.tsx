@@ -9,82 +9,66 @@ import { queryKeys } from "../lib/queryKeys";
 import { StatusBadge } from "../components/StatusBadge";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
+import { HudPageShell, HudButton, HudTabs } from "../components/HudPageShell";
 import { agentUrl } from "../lib/utils";
 import { timeAgo } from "../lib/timeAgo";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GlassCard } from "@/components/ui/glass-card";
-import { Button } from "@/components/ui/button";
-import { Bot, Plus, Play, Loader2 } from "lucide-react";
+import { Bot, Plus, Play, Loader2, Zap } from "lucide-react";
 import { type Agent } from "@paperclipai/shared";
 import { motion } from "framer-motion";
 import { useToast } from "../context/ToastContext";
 
+const GOLD = "#C9A84C";
+
 type FilterTab = "all" | "active" | "paused" | "error";
 
 function filterAgents(agents: Agent[], tab: FilterTab): Agent[] {
-    if (tab === "all") return agents;
-    return agents.filter(agent => {
-        if (tab === "active") return agent.status === "running" || agent.status === "idle";
-        if (tab === "paused") return agent.status === "paused";
-        if (tab === "error") return agent.status === "error";
-        return true;
-    });
+  if (tab === "all") return agents;
+  return agents.filter((a) => {
+    if (tab === "active") return a.status === "running" || a.status === "idle";
+    if (tab === "paused") return a.status === "paused";
+    if (tab === "error") return a.status === "error";
+    return true;
+  });
 }
 
-function HeartbeatTriggerButton({ agentId, agentName, companyId }: { agentId: string, agentName: string, companyId: string }) {
-    const { pushToast } = useToast();
-    const queryClient = useQueryClient();
+const STATUS_COLOR: Record<string, string> = {
+  running: "#34d399", idle: "#818cf8", error: "#f87171",
+  paused: "#fbbf24", pending_approval: "#fb923c", terminated: "#4b5563",
+};
 
-    const triggerHeartbeat = useMutation({
-        mutationFn: async () => {
-            const response = await fetch(`/api/agents/${agentId}/heartbeat/invoke`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-paperclip-company-id': companyId,
-                    'x-paperclip-local-trusted': 'true'
-                },
-                body: JSON.stringify({
-                    source: "on_demand",
-                    triggerDetail: "manual",
-                })
-            });
-            if (!response.ok) {
-                const text = await response.text();
-                throw new Error(text || "Failed to trigger heartbeat");
-            }
-            return response.json();
-        },
-        onSuccess: () => {
-            pushToast({ title: "Heartbeat triggered", body: `A new heartbeat run has been triggered for ${agentName}.`, tone: "success" });
-            queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(companyId, agentId) });
-            queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
-        },
-        onError: (err) => {
-            pushToast({ title: "Failed to trigger heartbeat", body: err instanceof Error ? err.message : "Unknown error", tone: "error" });
-        }
-    });
+function HeartbeatTriggerButton({ agentId, agentName, companyId }: { agentId: string; agentName: string; companyId: string }) {
+  const { pushToast } = useToast();
+  const queryClient = useQueryClient();
+  const trigger = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`/api/agents/${agentId}/heartbeat/invoke`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-paperclip-company-id": companyId, "x-paperclip-local-trusted": "true" },
+        body: JSON.stringify({ source: "on_demand", triggerDetail: "manual" }),
+      });
+      if (!r.ok) throw new Error(await r.text() || "Failed");
+      return r.json();
+    },
+    onSuccess: () => {
+      pushToast({ title: "Heartbeat triggered", body: `${agentName} is now running.`, tone: "success" });
+      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(companyId, agentId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
+    },
+    onError: (e) => pushToast({ title: "Failed", body: e instanceof Error ? e.message : "Unknown", tone: "error" }),
+  });
 
-    return (
-        <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 px-2 text-xs text-muted-foreground hover:text-primary"
-            onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                triggerHeartbeat.mutate();
-            }}
-            disabled={triggerHeartbeat.isPending}
-        >
-            {triggerHeartbeat.isPending ? (
-                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-            ) : (
-                <Play className="h-3 w-3 mr-1" />
-            )}
-            Run
-        </Button>
-    )
+  return (
+    <button
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); trigger.mutate(); }}
+      disabled={trigger.isPending}
+      className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold tracking-widest uppercase transition-all disabled:opacity-50"
+      style={{ background: `${GOLD}14`, color: GOLD, border: `1px solid ${GOLD}33`, fontFamily: "monospace" }}
+    >
+      {trigger.isPending ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Zap className="h-2.5 w-2.5" />}
+      Run
+    </button>
+  );
 }
 
 export function Agents() {
@@ -94,97 +78,110 @@ export function Agents() {
   const navigate = useNavigate();
   const location = useLocation();
   const pathSegment = location.pathname.split("/").pop() ?? "all";
-  const tab: FilterTab = ["all", "active", "paused", "error"].includes(pathSegment) ? pathSegment as FilterTab : "all";
+  const tab: FilterTab = (["all", "active", "paused", "error"] as FilterTab[]).includes(pathSegment as FilterTab) ? (pathSegment as FilterTab) : "all";
 
   const { data: agents, isLoading, error } = useQuery({
     queryKey: queryKeys.agents.list(selectedCompanyId!),
     queryFn: () => agentsApi.list(selectedCompanyId!),
     enabled: !!selectedCompanyId,
-    refetchInterval: 10000, // Refetch every 10 seconds
+    refetchInterval: 10000,
   });
 
-  useEffect(() => {
-    setBreadcrumbs([{ label: "Agents" }]);
-  }, [setBreadcrumbs]);
+  useEffect(() => { setBreadcrumbs([{ label: "Agents" }]); }, [setBreadcrumbs]);
 
   const filteredAgents = useMemo(() => filterAgents(agents ?? [], tab), [agents, tab]);
 
-  if (!selectedCompanyId) {
-    return <EmptyState icon={Bot} message="Select a company to view agents." />;
-  }
+  if (!selectedCompanyId) return <EmptyState icon={Bot} message="Select a company to view agents." />;
+  if (isLoading) return <PageSkeleton variant="list" />;
 
-  if (isLoading) {
-    return <PageSkeleton variant="list" />;
-  }
+  const tabItems = (["all", "active", "paused", "error"] as FilterTab[]).map((t) => ({
+    key: t,
+    label: t.charAt(0).toUpperCase() + t.slice(1),
+    count: t === "all" ? (agents?.length ?? 0) : filterAgents(agents ?? [], t).length,
+  }));
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Tabs value={tab} onValueChange={(v) => navigate(`/agents/${v}`)}>
-          <TabsList variant="line">
-            {(["all", "active", "paused", "error"] as FilterTab[]).map((t) => (
-              <TabsTrigger key={t} value={t} className="capitalize">{t}</TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-        <Button size="sm" variant="outline" onClick={openNewAgent}>
-          <Plus className="h-3.5 w-3.5 mr-1.5" />
-          New Agent
-        </Button>
-      </div>
-
-      {error && <p className="text-sm text-destructive">{error.message}</p>}
-
-      {agents && agents.length === 0 && (
-        <EmptyState
-          icon={Bot}
-          message="Create your first agent to get started."
-          action="New Agent"
-          onAction={openNewAgent}
+    <HudPageShell
+      icon={Bot}
+      title="Agents"
+      subtitle={`${agents?.length ?? 0} agents total · ${agents?.filter((a) => a.status === "running").length ?? 0} active`}
+      action={
+        <HudButton onClick={openNewAgent}>
+          <Plus className="h-3 w-3" /> New Agent
+        </HudButton>
+      }
+      tabs={
+        <HudTabs
+          tabs={tabItems}
+          value={tab}
+          onChange={(k) => navigate(`/agents/${k}`)}
         />
+      }
+    >
+      {error && <p className="text-xs text-destructive font-mono">{(error as Error).message}</p>}
+
+      {agents?.length === 0 && (
+        <EmptyState icon={Bot} message="Create your first agent to get started." action="New Agent" onAction={openNewAgent} />
       )}
 
       {filteredAgents.length > 0 && (
         <motion.div
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-          variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
+          variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
           initial="hidden"
           animate="visible"
         >
-          {filteredAgents.map((agent) => (
-            <motion.div key={agent.id} variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}>
-              <GlassCard
-                glow={agent.status === "running"}
-                className="flex flex-col h-full p-4"
-              >
-                <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500/20 to-emerald-700/20 flex items-center justify-center">
-                            <span className="text-primary font-semibold text-lg">{agent.name.charAt(0)}</span>
-                        </div>
-                        <span className="font-semibold">{agent.name}</span>
-                        <span className="ml-auto"><StatusBadge status={agent.status} /></span>
+          {filteredAgents.map((agent) => {
+            const color = STATUS_COLOR[agent.status] ?? "#6b7280";
+            return (
+              <motion.div key={agent.id} variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } }}>
+                <div
+                  className="relative flex flex-col gap-3 p-4 rounded-xl h-full transition-all duration-150 hover:translate-y-[-1px]"
+                  style={{
+                    background: `linear-gradient(160deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 100%)`,
+                    border: `1px solid ${color}33`,
+                    boxShadow: agent.status === "running" ? `0 0 16px ${color}22` : undefined,
+                  }}
+                >
+                  {/* header */}
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 font-black text-base"
+                      style={{ background: `${color}18`, border: `1px solid ${color}33`, color, fontFamily: "monospace" }}
+                    >
+                      {agent.name.charAt(0).toUpperCase()}
                     </div>
-                    {agent.title && (
-                        <p className="text-sm text-muted-foreground mt-2">{agent.title}</p>
-                    )}
-                </div>
-                <div className="flex items-center justify-between mt-4 text-sm">
-                  <div className="flex flex-col gap-1 items-start">
-                    <span className="text-muted-foreground text-xs">
-                        {agent.lastHeartbeatAt ? `Active ${timeAgo(agent.lastHeartbeatAt)}` : "Never active"}
-                    </span>
-                    <HeartbeatTriggerButton agentId={agent.id} agentName={agent.name} companyId={selectedCompanyId} />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-sm text-white/90 truncate" style={{ fontFamily: "monospace" }}>
+                        {agent.name.replace(" Agent", "")}
+                      </div>
+                      {agent.title && <div className="text-[10px] text-white/45 truncate">{agent.title}</div>}
+                    </div>
+                    <StatusBadge status={agent.status} />
                   </div>
-                  <Link to={agentUrl(agent)} className="text-primary font-medium hover:underline ml-auto">
-                    View →
-                  </Link>
+
+                  {/* meta */}
+                  <div className="text-[10px] text-white/40 font-mono">
+                    {agent.lastHeartbeatAt ? `Last active ${timeAgo(agent.lastHeartbeatAt)}` : "Never active"}
+                  </div>
+
+                  {/* actions */}
+                  <div className="flex items-center justify-between mt-auto pt-1 border-t border-white/[0.05]">
+                    <HeartbeatTriggerButton agentId={agent.id} agentName={agent.name} companyId={selectedCompanyId!} />
+                    <Link
+                      to={agentUrl(agent)}
+                      className="text-[10px] font-bold tracking-widest uppercase no-underline hover:opacity-80 transition-opacity"
+                      style={{ color: GOLD, fontFamily: "monospace" }}
+                    >
+                      View →
+                    </Link>
+                  </div>
                 </div>
-              </GlassCard>
-            </motion.div>
-          ))}
+              </motion.div>
+            );
+          })}
         </motion.div>
       )}
-    </div>
+    </HudPageShell>
   );
 }

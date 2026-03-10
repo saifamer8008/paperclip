@@ -8,6 +8,7 @@ import { queryKeys } from "../lib/queryKeys";
 import { agentUrl } from "../lib/utils";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
+import { HudPageShell } from "../components/HudPageShell";
 import { Network } from "lucide-react";
 import { AGENT_ROLE_LABELS, type Agent } from "@paperclipai/shared";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -245,11 +246,7 @@ export function OrgChart() {
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-          <h1 className="text-2xl font-bold">Org Chart</h1>
-          <p className="text-sm text-muted-foreground">LFG Agent Hierarchy</p>
-      </div>
+    <HudPageShell icon={Network} title="Org Chart" subtitle="LFG Agent Hierarchy">
       <div
         ref={containerRef}
         className="w-full h-[calc(100vh-10rem)] overflow-hidden relative bg-muted/20 border border-border rounded-lg"
@@ -388,7 +385,7 @@ export function OrgChart() {
           })}
         </div>
       </div>
-    </div>
+    </HudPageShell>
   );
 }
 

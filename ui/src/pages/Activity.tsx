@@ -11,8 +11,8 @@ import { queryKeys } from "../lib/queryKeys";
 import { EmptyState } from "../components/EmptyState";
 import { ActivityRow } from "../components/ActivityRow";
 import { PageSkeleton } from "../components/PageSkeleton";
+import { HudPageShell, HudTabs } from "../components/HudPageShell";
 import { GlassCard } from "@/components/ui/glass-card";
-import { cn } from "../lib/utils";
 import { History } from "lucide-react";
 import type { Agent } from "@paperclipai/shared";
 
@@ -23,9 +23,7 @@ export function Activity() {
   const { setBreadcrumbs } = useBreadcrumbs();
   const [filter, setFilter] = useState<FilterTab>("All");
 
-  useEffect(() => {
-    setBreadcrumbs([{ label: "Activity" }]);
-  }, [setBreadcrumbs]);
+  useEffect(() => { setBreadcrumbs([{ label: "Activity" }]); }, [setBreadcrumbs]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: queryKeys.activity(selectedCompanyId!),
@@ -58,81 +56,59 @@ export function Activity() {
   });
 
   const agentMap = useMemo(() => {
-    const map = new Map<string, Agent>();
-    for (const a of agents ?? []) map.set(a.id, a);
-    return map;
+    const m = new Map<string, Agent>();
+    for (const a of agents ?? []) m.set(a.id, a);
+    return m;
   }, [agents]);
 
   const entityNameMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const i of issues ?? []) map.set(`issue:${i.id}`, i.identifier ?? i.id.slice(0, 8));
-    for (const a of agents ?? []) map.set(`agent:${a.id}`, a.name);
-    for (const p of projects ?? []) map.set(`project:${p.id}`, p.name);
-    for (const g of goals ?? []) map.set(`goal:${g.id}`, g.title);
-    return map;
+    const m = new Map<string, string>();
+    for (const i of issues  ?? []) m.set(`issue:${i.id}`,   i.identifier ?? i.id.slice(0, 8));
+    for (const a of agents  ?? []) m.set(`agent:${a.id}`,   a.name);
+    for (const p of projects ?? []) m.set(`project:${p.id}`, p.name);
+    for (const g of goals   ?? []) m.set(`goal:${g.id}`,    g.title);
+    return m;
   }, [issues, agents, projects, goals]);
 
   const entityTitleMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const i of issues ?? []) map.set(`issue:${i.id}`, i.title);
-    return map;
+    const m = new Map<string, string>();
+    for (const i of issues ?? []) m.set(`issue:${i.id}`, i.title);
+    return m;
   }, [issues]);
 
-  if (!selectedCompanyId) {
-    return <EmptyState icon={History} message="Select a company to view activity." />;
-  }
+  if (!selectedCompanyId) return <EmptyState icon={History} message="Select a company to view activity." />;
+  if (isLoading) return <PageSkeleton variant="list" />;
 
-  if (isLoading) {
-    return <PageSkeleton variant="list" />;
-  }
-
-  const tabs: FilterTab[] = ["All", "Agents", "Issues", "Costs"];
+  const TABS: FilterTab[] = ["All", "Agents", "Issues", "Costs"];
+  const tabItems = TABS.map((t) => ({ key: t, label: t }));
 
   return (
-    <div className="space-y-6">
-      <div>
-          <h1 className="text-2xl font-bold">Activity Feed</h1>
-      </div>
+    <HudPageShell
+      icon={History}
+      title="Activity Feed"
+      subtitle={`${data?.length ?? 0} events`}
+      tabs={<HudTabs tabs={tabItems} value={filter} onChange={(k) => setFilter(k as FilterTab)} />}
+    >
+      {error && <p className="text-xs text-destructive font-mono">{(error as Error).message}</p>}
 
-      <div className="flex items-center gap-2">
-          {tabs.map(tab => (
-              <button
-                  key={tab}
-                  onClick={() => setFilter(tab)}
-                  className={cn(
-                      "px-3 py-1 text-sm rounded-full transition-colors",
-                      filter === tab
-                          ? "bg-primary/10 text-primary border border-primary/20"
-                          : "text-muted-foreground hover:text-foreground"
-                  )}
-              >
-                  {tab}
-              </button>
-          ))}
-      </div>
-
-      {error && <p className="text-sm text-destructive">{error.message}</p>}
-
-      {data && data.length === 0 && (
-        <EmptyState icon={History} message="No activity yet." />
-      )}
+      {data?.length === 0 && <EmptyState icon={History} message="No activity yet." />}
 
       {data && data.length > 0 && (
         <GlassCard className="overflow-hidden">
-            <div className="divide-y divide-border/50">
+          <div className="divide-y divide-border/50">
             {data.map((event) => (
-                <ActivityRow
+              <ActivityRow
                 key={event.id}
                 event={event}
                 agentMap={agentMap}
                 entityNameMap={entityNameMap}
                 entityTitleMap={entityTitleMap}
                 className="p-4 hover:bg-white/[0.02] transition-colors"
-                />
+              />
             ))}
-            </div>
+          </div>
         </GlassCard>
       )}
-    </div>
+    </HudPageShell>
   );
 }
