@@ -1,3 +1,5 @@
+
+import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { activityApi } from "../api/activity";
@@ -16,7 +18,7 @@ import { timeAgo } from "../lib/timeAgo";
 import { cn, formatCents } from "../lib/utils";
 import {
   Bot, CircleDot, DollarSign, ShieldCheck, LayoutDashboard,
-  AlertTriangle, Activity, Wifi, Zap, Radio,
+  AlertTriangle, Activity, Wifi, Zap, Radio, X,
 } from "lucide-react";
 import type { Agent, Issue } from "@paperclipai/shared";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -401,6 +403,7 @@ export function Dashboard() {
   const { selectedCompanyId, companies } = useCompany();
   const { openOnboarding }               = useDialog();
   const { setBreadcrumbs }               = useBreadcrumbs();
+  const [showBrief, setShowBrief] = useState(false);
 
   const [animatedActivityIds, setAnimatedActivityIds] = useState<Set<string>>(new Set());
   const seenActivityIdsRef   = useRef<Set<string>>(new Set());
@@ -419,6 +422,26 @@ export function Dashboard() {
   const {
     agents, activity, agentMap, entityNameMap, entityTitleMap,
   } = useDashboardData(selectedCompanyId ?? "");
+
+  // Morning brief logic
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const key = `morning-brief-shown-${today}`;
+    const alreadyShown = localStorage.getItem(key);
+    const now = new Date();
+    const hour = now.getHours();
+
+    if (!alreadyShown && (hour >= 5 && hour < 12)) {
+      setShowBrief(true);
+    }
+  }, []);
+
+  const dismissBrief = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const key = `morning-brief-shown-${today}`;
+    localStorage.setItem(key, "true");
+    setShowBrief(false);
+  };
 
   // Activity animation
   useEffect(() => {
@@ -470,6 +493,10 @@ export function Dashboard() {
       style={{ fontFamily: "'Space Mono', 'Courier New', monospace" }}
     >
       {error && <p className="text-sm text-destructive">{error.message}</p>}
+
+      {showBrief && (
+        <MorningBrief data={summaryRaw} onDismiss={dismissBrief} activity={activity} agentMap={agentMap} entityNameMap={entityNameMap} entityTitleMap={entityTitleMap} />
+      )}
 
       {hasNoAgents && (
         <div
@@ -554,3 +581,96 @@ export function Dashboard() {
     </div>
   );
 }
+
+
+function MorningBrief({ data, onDismiss, activity, agentMap, entityNameMap, entityTitleMap }: { data: any, onDismiss: () => void, activity: any[], agentMap: Map<string, Agent>, entityNameMap: Map<string, string>, entityTitleMap: Map<string, string> }) {
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center"
+        onClick={onDismiss}
+      >
+        <motion.div
+          initial={{ scale: 0.9, y: 20 }}
+          animate={{ scale: 1, y: 0 }}
+          exit={{ scale: 0.9, y: 20 }}
+          className="relative w-full max-w-2xl rounded-2xl p-6"
+          style={{
+            background: "radial-gradient(circle at top, oklch(15% 0.05 250 / 0.9), oklch(10% 0.05 250 / 0.95))",
+            border: `1px solid ${GOLD}22`,
+            boxShadow: `0 0 50px ${GOLD}11, 0 0 120px oklch(15% 0.1 250 / 0.5) inset`,
+            fontFamily: "'Space Mono', 'Courier New', monospace",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button onClick={onDismiss} className="absolute top-4 right-4 text-white/40 hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+
+          <h2 className="text-xl font-black tracking-widest uppercase" style={{ color: GOLD }}>
+            ◈ MORNING BRIEF — <span className="text-sm">{today}</span>
+          </h2>
+          <p className="text-xs text-white/40 mt-1 mb-6 tracking-wider">A summary of your operations since yesterday.</p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Left Column */}
+            <div className="space-y-4">
+              <BriefSection title="🟢 Active Agents" value={data.agents.running} />
+              <BriefSection title="🔴 Errors" value={data.agents.error} />
+              <BriefSection title="💰 Today's Spend" value={formatCents(data.costs.todaySpendCents)} />
+            </div>
+
+            {/* Right Column */}
+            <div>
+              <h3 className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: GOLD + 'aa' }}>
+                📋 Recent Activity
+              </h3>
+              <div className="space-y-1 text-xs text-white/60 max-h-48 overflow-y-auto scrollbar-hide pr-2">
+                {activity.slice(0, 5).map(event => (
+                  <ActivityRow
+                    key={event.id}
+                    event={event}
+                    agentMap={agentMap}
+                    entityNameMap={entityNameMap}
+                    entityTitleMap={entityTitleMap}
+                    className="px-0 py-0.5 text-[10px] font-mono"
+                  />
+                ))}
+                {activity.length === 0 && <p className="text-white/40 text-[10px] italic">No activity to report.</p>}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 pt-4 border-t" style={{ borderColor: `${GOLD}22` }}>
+            <button
+              onClick={onDismiss}
+              className="w-full text-center py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all"
+              style={{ background: `${GOLD}11`, color: GOLD, border: `1px solid ${GOLD}33` }}
+            >
+              Dismiss
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+function BriefSection({ title, value }: { title: string, value: string | number }) {
+  return (
+    <div>
+      <h3 className="text-xs font-bold tracking-widest uppercase mb-1" style={{ color: GOLD + 'aa' }}>
+        {title}
+      </h3>
+      <p className="text-2xl font-black" style={{ color: GOLD2 }}>
+        {value}
+      </p>
+    </div>
+  );
+}
+

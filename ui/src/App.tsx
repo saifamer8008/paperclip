@@ -1,3 +1,4 @@
+
 import { useEffect, useRef } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
@@ -7,6 +8,9 @@ import { OnboardingWizard } from "./components/OnboardingWizard";
 import { authApi } from "./api/auth";
 import { healthApi } from "./api/health";
 import { Dashboard } from "./pages/Dashboard";
+import { ToolForge } from "./pages/ToolForge";
+import { CronManager } from "./pages/CronManager";
+import { Journal } from "./pages/Journal";
 import { SplashScreen } from "./pages/SplashScreen";
 import { Companies } from "./pages/Companies";
 import { Agents } from "./pages/Agents";
@@ -105,6 +109,9 @@ function boardRoutes() {
     <>
       <Route index element={<Navigate to="dashboard" replace />} />
       <Route path="dashboard" element={<Dashboard />} />
+      <Route path="tool-forge" element={<ToolForge />} />
+      <Route path="crons" element={<CronManager />} />
+      <Route path="journal" element={<Journal />} />
       <Route path="companies" element={<Companies />} />
       <Route path="company/settings" element={<CompanySettings />} />
       <Route path="org" element={<OrgChart />} />

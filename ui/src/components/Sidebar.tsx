@@ -1,3 +1,4 @@
+
 import { useMemo } from 'react';
 import { useLocation } from '@/lib/router';
 import { cn } from '@/lib/utils';
@@ -14,6 +15,9 @@ import {
     ChevronRight,
     Settings,
     DollarSign,
+    Clock,
+    Wrench,
+    NotebookPen,
 } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useCompany } from '@/context/CompanyContext';
@@ -34,9 +38,12 @@ export function Sidebar() {
         { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
         { to: '/issues', label: 'Issues', icon: CircleDotDashed },
         { to: '/agents', label: 'Agents', icon: Bot },
+        { to: '/crons', label: 'Crons', icon: Clock },
         { to: '/costs', label: 'Costs', icon: DollarSign },
         { to: '/approvals', label: 'Approvals', icon: ShieldCheck },
         { to: '/projects', label: 'Projects', icon: FileCode },
+        { to: '/journal', label: 'Journal', icon: NotebookPen },
+        { to: '/tool-forge', label: 'Tool Forge', icon: Wrench },
     ], []);
 
     const bottomNavItems = useMemo<NavItem[]>(() => [
