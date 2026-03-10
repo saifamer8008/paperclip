@@ -7,6 +7,7 @@ import { OnboardingWizard } from "./components/OnboardingWizard";
 import { authApi } from "./api/auth";
 import { healthApi } from "./api/health";
 import { Dashboard } from "./pages/Dashboard";
+import { SplashScreen } from "./pages/SplashScreen";
 import { Companies } from "./pages/Companies";
 import { Agents } from "./pages/Agents";
 import { AgentDetail } from "./pages/AgentDetail";
@@ -160,6 +161,13 @@ function CompanyRootRedirect() {
   const targetCompany = selectedCompany ?? companies[0] ?? null;
   if (!targetCompany) {
     return <NoCompaniesStartPage />;
+  }
+
+  // Show splash screen once per browser session
+  const splashSeen = sessionStorage.getItem("lfg_splash_seen");
+  if (!splashSeen) {
+    sessionStorage.setItem("lfg_splash_seen", "1");
+    return <SplashScreen />;
   }
 
   return <Navigate to={`/${targetCompany.issuePrefix}/dashboard`} replace />;
