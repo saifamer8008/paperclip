@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { agentsApi } from "../api/agents";
@@ -9,8 +9,9 @@ import { queryKeys } from "../lib/queryKeys";
 import { StatusBadge } from "../components/StatusBadge";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
-import { timeAgo, agentUrl } from "../lib/utils";
-import { PageTabBar } from "../components/PageTabBar";
+import { agentUrl } from "../lib/utils";
+import { timeAgo } from "../lib/timeAgo";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Bot, Plus, Play, Loader2 } from "lucide-react";
@@ -31,7 +32,7 @@ function filterAgents(agents: Agent[], tab: FilterTab): Agent[] {
 }
 
 function HeartbeatTriggerButton({ agentId, agentName, companyId }: { agentId: string, agentName: string, companyId: string }) {
-    const { toast } = useToast();
+    const { pushToast } = useToast();
     const queryClient = useQueryClient();
 
     const triggerHeartbeat = useMutation({
@@ -55,20 +56,12 @@ function HeartbeatTriggerButton({ agentId, agentName, companyId }: { agentId: st
             return response.json();
         },
         onSuccess: () => {
-            toast({
-                title: "Heartbeat triggered",
-                description: `A new heartbeat run has been triggered for ${agentName}.`,
-                variant: "default",
-            });
+            pushToast({ title: "Heartbeat triggered", body: `A new heartbeat run has been triggered for ${agentName}.`, tone: "success" });
             queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(companyId, agentId) });
             queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
         },
         onError: (err) => {
-            toast({
-                title: "Failed to trigger heartbeat",
-                description: err instanceof Error ? err.message : "Unknown error",
-                variant: "destructive",
-            });
+            pushToast({ title: "Failed to trigger heartbeat", body: err instanceof Error ? err.message : "Unknown error", tone: "error" });
         }
     });
 
@@ -110,7 +103,7 @@ export function Agents() {
     refetchInterval: 10000, // Refetch every 10 seconds
   });
 
-  useMemo(() => {
+  useEffect(() => {
     setBreadcrumbs([{ label: "Agents" }]);
   }, [setBreadcrumbs]);
 
@@ -121,22 +114,19 @@ export function Agents() {
   }
 
   if (isLoading) {
-    return <PageSkeleton variant="grid" />;
+    return <PageSkeleton variant="list" />;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <PageTabBar
-          items={[
-            { value: "all", label: "All" },
-            { value: "active", label: "Active" },
-            { value: "paused", label: "Paused" },
-            { value: "error", label: "Error" },
-          ]}
-          value={tab}
-          onValueChange={(v) => navigate(`/agents/${v}`)}
-        />
+        <Tabs value={tab} onValueChange={(v) => navigate(`/agents/${v}`)}>
+          <TabsList variant="line">
+            {(["all", "active", "paused", "error"] as FilterTab[]).map((t) => (
+              <TabsTrigger key={t} value={t} className="capitalize">{t}</TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
         <Button size="sm" variant="outline" onClick={openNewAgent}>
           <Plus className="h-3.5 w-3.5 mr-1.5" />
           New Agent
@@ -173,7 +163,7 @@ export function Agents() {
                             <span className="text-primary font-semibold text-lg">{agent.name.charAt(0)}</span>
                         </div>
                         <span className="font-semibold">{agent.name}</span>
-                        <StatusBadge status={agent.status} className="ml-auto" />
+                        <span className="ml-auto"><StatusBadge status={agent.status} /></span>
                     </div>
                     {agent.title && (
                         <p className="text-sm text-muted-foreground mt-2">{agent.title}</p>

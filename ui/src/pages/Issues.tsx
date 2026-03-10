@@ -96,7 +96,7 @@ export function Issues() {
       initialAssignees={searchParams.get("assignee") ? [searchParams.get("assignee")!] : undefined}
       initialSearch={initialSearch}
       onSearchChange={handleSearchChange}
-      onUpdateIssue={(id, data) => updateIssue.mutate({ id, data })}
+      onUpdateIssue={(id: string, data: Record<string, unknown>) => updateIssue.mutate({ id, data })}
     />
   );
 }

@@ -5,7 +5,8 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { GlassCard } from "./ui/glass-card";
-import { cn, timeAgo } from "../lib/utils";
+import { cn } from "../lib/utils";
+import { timeAgo } from "../lib/timeAgo";
 import type { Issue } from "@paperclipai/shared";
 
 const boardStatuses = ["backlog", "todo", "in_progress", "in_review", "blocked", "done", "cancelled"];
@@ -23,7 +24,7 @@ interface KanbanBoardProps {
   issues: Issue[];
   agents?: Agent[];
   liveIssueIds?: Set<string>;
-  onUpdateIssue: (id: string, data: Record<string, unknown>) => void;
+  onUpdateIssue?: (id: string, data: Record<string, unknown>) => void;
 }
 
 const priorityDotColor = (priority: string) => {
@@ -127,7 +128,7 @@ export function KanbanBoard({ issues, onUpdateIssue }: KanbanBoardProps) {
     }
 
     if (targetStatus && targetStatus !== issue.status) {
-      onUpdateIssue(issueId, { status: targetStatus });
+      onUpdateIssue?.(issueId, { status: targetStatus });
     }
   }
 

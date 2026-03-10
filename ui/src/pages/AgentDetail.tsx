@@ -8,7 +8,8 @@ import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { GlassCard } from "@/components/ui/glass-card";
-import { timeAgo, formatCents, cn } from "../lib/utils";
+import { formatCents, cn } from "../lib/utils";
+import { timeAgo } from "../lib/timeAgo";
 import { type Agent, type HeartbeatRun } from "@paperclipai/shared";
 import { CheckCircle2, XCircle, Clock, Loader2, Slash, Timer, Play } from 'lucide-react';
 import { Button } from "@/components/ui/button";
@@ -48,7 +49,7 @@ const runStatusTimeline = {
 } as const;
 
 function HeartbeatTriggerButton({ agentId, agentName, companyId }: { agentId: string, agentName: string, companyId: string }) {
-    const { toast } = useToast();
+    const { pushToast } = useToast();
     const queryClient = useQueryClient();
 
     const triggerHeartbeat = useMutation({
@@ -72,19 +73,11 @@ function HeartbeatTriggerButton({ agentId, agentName, companyId }: { agentId: st
             return response.json();
         },
         onSuccess: () => {
-            toast({
-                title: "Heartbeat triggered",
-                description: `A new heartbeat run has been triggered for ${agentName}.`,
-                variant: "default",
-            });
+            pushToast({ title: "Heartbeat triggered", body: `A new heartbeat run has been triggered for ${agentName}.`, tone: "success" });
             queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(companyId, agentId) });
         },
         onError: (err) => {
-            toast({
-                title: "Failed to trigger heartbeat",
-                description: err instanceof Error ? err.message : "Unknown error",
-                variant: "destructive",
-            });
+            pushToast({ title: "Failed to trigger heartbeat", body: err instanceof Error ? err.message : "Unknown error", tone: "error" });
         }
     });
 
@@ -112,14 +105,14 @@ export function AgentDetail() {
   const { setBreadcrumbs } = useBreadcrumbs();
 
   const { data: agent, isLoading: isAgentLoading, error: agentError } = useQuery({
-    queryKey: queryKeys.agents.detail(agentId),
-    queryFn: () => agentsApi.get(agentId, selectedCompanyId),
+    queryKey: queryKeys.agents.detail(agentId ?? ""),
+    queryFn: () => agentsApi.get(agentId!, selectedCompanyId ?? undefined),
     enabled: !!selectedCompanyId,
   });
 
   const { data: heartbeats, isLoading: isHeartbeatsLoading, error: heartbeatsError } = useQuery({
-    queryKey: queryKeys.heartbeats(selectedCompanyId!, agentId),
-    queryFn: () => heartbeatsApi.list(selectedCompanyId!, agentId),
+    queryKey: queryKeys.heartbeats(selectedCompanyId!, agentId!),
+    queryFn: () => heartbeatsApi.list(selectedCompanyId!, agentId!),
     enabled: !!selectedCompanyId && !!agentId,
     refetchInterval: 5000, // Poll for updates
   });
