@@ -101,3 +101,5 @@ router.get("/search", (req, res) => {
 });
 
 export default router;
+
+export const journalRoutes = router;

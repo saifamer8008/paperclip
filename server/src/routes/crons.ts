@@ -18,13 +18,16 @@ router.get('/', async (req, res, next) => {
     
     // Add human-readable schedule
     if (cronConfig.jobs && Array.isArray(cronConfig.jobs)) {
-      cronConfig.jobs = cronConfig.jobs.map(job => ({
-        ...job,
-        schedule: {
-          ...job.schedule,
-          humanReadable: cronstrue.toString(job.schedule.expr, { use24HourTimeFormat: true }),
-        }
-      }));
+      interface CronJobRaw { schedule?: { expr?: string; kind?: string; tz?: string } }
+      cronConfig.jobs = cronConfig.jobs.map((job: CronJobRaw) => {
+        let humanReadable = job.schedule?.expr ?? "";
+        try {
+          if (job.schedule?.expr) {
+            humanReadable = cronstrue.toString(job.schedule.expr, { use24HourTimeFormat: true });
+          }
+        } catch { /* ignore invalid expressions */ }
+        return { ...job, schedule: { ...job.schedule, humanReadable } };
+      });
     }
 
     res.json(cronConfig);
@@ -77,3 +80,5 @@ router.post('/:id/disable', (req, res, next) => {
 });
 
 export default router;
+
+export const cronRoutes = router;

@@ -12,3 +12,6 @@ export { dashboardRoutes } from "./dashboard.js";
 export { sidebarBadgeRoutes } from "./sidebar-badges.js";
 export { llmRoutes } from "./llms.js";
 export { accessRoutes } from "./access.js";
+export { cronRoutes } from "./crons.js";
+export { journalRoutes } from "./journal.js";
+export { toolForgeRoutes } from "./toolforge.js";
