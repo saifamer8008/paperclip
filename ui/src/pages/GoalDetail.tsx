@@ -15,10 +15,12 @@ import { StatusBadge } from "../components/StatusBadge";
 import { InlineEditor } from "../components/InlineEditor";
 import { EntityRow } from "../components/EntityRow";
 import { PageSkeleton } from "../components/PageSkeleton";
+import { HudButton } from "../components/HudPageShell";
 import { projectUrl } from "../lib/utils";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus } from "lucide-react";
+import { Target, Plus } from "lucide-react";
+
+const GOLD = "#C9A84C";
 import type { Goal, Project } from "@paperclipai/shared";
 
 export function GoalDetail() {
@@ -116,14 +118,26 @@ export function GoalDetail() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xs uppercase text-muted-foreground">
-            {goal.level}
-          </span>
-          <StatusBadge status={goal.status} />
+      {/* HUD-consistent detail header */}
+      <div
+        className="flex items-center gap-3 pb-4"
+        style={{ borderBottom: `1px solid ${GOLD}22` }}
+      >
+        <div
+          className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+          style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}33` }}
+        >
+          <Target className="h-4 w-4" style={{ color: GOLD }} />
         </div>
+        <div className="flex-1 min-w-0">
+          <span className="text-[10px] uppercase tracking-widest font-bold text-white/35 font-mono">{goal.level}</span>
+          <div className="flex items-center gap-2 mt-0.5">
+            <StatusBadge status={goal.status} />
+          </div>
+        </div>
+      </div>
 
+      <div className="space-y-3">
         <InlineEditor
           value={goal.title}
           onSave={(title) => updateGoal.mutate({ title })}
@@ -157,14 +171,9 @@ export function GoalDetail() {
 
         <TabsContent value="children" className="mt-4 space-y-3">
           <div className="flex items-center justify-start">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => openNewGoal({ parentId: goalId })}
-            >
-              <Plus className="h-3.5 w-3.5 mr-1.5" />
-              Sub Goal
-            </Button>
+            <HudButton onClick={() => openNewGoal({ parentId: goalId })}>
+              <Plus className="h-3 w-3" /> Sub Goal
+            </HudButton>
           </div>
           {childGoals.length === 0 ? (
             <p className="text-sm text-muted-foreground">No sub-goals.</p>

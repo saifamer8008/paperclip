@@ -18,9 +18,7 @@ import { PageSkeleton } from "../components/PageSkeleton";
 import { ApprovalCard } from "../components/ApprovalCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { timeAgo } from "../lib/timeAgo";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Tabs } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -38,7 +36,10 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { Identity } from "../components/Identity";
-import { PageTabBar } from "../components/PageTabBar";
+import { HudPageShell, HudTabs } from "../components/HudPageShell";
+import { Button } from "@/components/ui/button";
+
+const GOLD = "#C9A84C";
 import type { HeartbeatRun, Issue, JoinRequest } from "@paperclipai/shared";
 
 const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -587,71 +588,58 @@ export function Inbox() {
 
   const showSeparatorBefore = (key: SectionKey) => visibleSections.indexOf(key) > 0;
 
+  const inboxTabs = [
+    { key: "new", label: "New", count: newItemCount },
+    { key: "all", label: "All" },
+  ];
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <Tabs value={tab} onValueChange={(value) => navigate(`/inbox/${value === "all" ? "all" : "new"}`)}>
-          <PageTabBar
-            items={[
-              {
-                value: "new",
-                label: (
-                  <>
-                    New
-                    {newItemCount > 0 && (
-                      <span className="ml-1.5 rounded-full bg-blue-500/20 px-1.5 py-0.5 text-[10px] font-medium text-blue-500">
-                        {newItemCount}
-                      </span>
-                    )}
-                  </>
-                ),
-              },
-              { value: "all", label: "All" },
-            ]}
+    <HudPageShell
+      icon={InboxIcon}
+      title="Inbox"
+      subtitle={newItemCount > 0 ? `${newItemCount} new item${newItemCount !== 1 ? "s" : ""}` : "All clear"}
+      tabs={
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <HudTabs
+            tabs={inboxTabs}
+            value={tab}
+            onChange={(value) => navigate(`/inbox/${value === "all" ? "all" : "new"}`)}
           />
-        </Tabs>
-
-        {tab === "all" && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Select
-              value={allCategoryFilter}
-              onValueChange={(value) => setAllCategoryFilter(value as InboxCategoryFilter)}
-            >
-              <SelectTrigger className="h-8 w-[170px] text-xs">
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="everything">All categories</SelectItem>
-                <SelectItem value="issues_i_touched">My recent issues</SelectItem>
-                <SelectItem value="join_requests">Join requests</SelectItem>
-                <SelectItem value="approvals">Approvals</SelectItem>
-                <SelectItem value="failed_runs">Failed runs</SelectItem>
-                <SelectItem value="alerts">Alerts</SelectItem>
-                <SelectItem value="stale_work">Stale work</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {showApprovalsCategory && (
-              <Select
-                value={allApprovalFilter}
-                onValueChange={(value) => setAllApprovalFilter(value as InboxApprovalFilter)}
-              >
-                <SelectTrigger className="h-8 w-[170px] text-xs">
-                  <SelectValue placeholder="Approval status" />
+          {tab === "all" && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={allCategoryFilter} onValueChange={(v) => setAllCategoryFilter(v as InboxCategoryFilter)}>
+                <SelectTrigger className="h-7 w-[160px] text-[10px] font-mono" style={{ background: "rgba(0,0,0,0.35)", borderColor: `${GOLD}33`, color: "rgba(255,255,255,0.7)" }}>
+                  <SelectValue placeholder="Category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All approval statuses</SelectItem>
-                  <SelectItem value="actionable">Needs action</SelectItem>
-                  <SelectItem value="resolved">Resolved</SelectItem>
+                  <SelectItem value="everything">All categories</SelectItem>
+                  <SelectItem value="issues_i_touched">My recent issues</SelectItem>
+                  <SelectItem value="join_requests">Join requests</SelectItem>
+                  <SelectItem value="approvals">Approvals</SelectItem>
+                  <SelectItem value="failed_runs">Failed runs</SelectItem>
+                  <SelectItem value="alerts">Alerts</SelectItem>
+                  <SelectItem value="stale_work">Stale work</SelectItem>
                 </SelectContent>
               </Select>
-            )}
-          </div>
-        )}
-      </div>
-
-      {approvalsError && <p className="text-sm text-destructive">{approvalsError.message}</p>}
-      {actionError && <p className="text-sm text-destructive">{actionError}</p>}
+              {showApprovalsCategory && (
+                <Select value={allApprovalFilter} onValueChange={(v) => setAllApprovalFilter(v as InboxApprovalFilter)}>
+                  <SelectTrigger className="h-7 w-[160px] text-[10px] font-mono" style={{ background: "rgba(0,0,0,0.35)", borderColor: `${GOLD}33`, color: "rgba(255,255,255,0.7)" }}>
+                    <SelectValue placeholder="Approval status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All approval statuses</SelectItem>
+                    <SelectItem value="actionable">Needs action</SelectItem>
+                    <SelectItem value="resolved">Resolved</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+        </div>
+      }
+    >
+      {approvalsError && <p className="text-xs text-destructive font-mono">{(approvalsError as Error).message}</p>}
+      {actionError && <p className="text-xs text-destructive font-mono">{actionError}</p>}
 
       {!allLoaded && visibleSections.length === 0 && (
         <PageSkeleton variant="inbox" />
@@ -996,6 +984,6 @@ export function Inbox() {
           </div>
         </>
       )}
-    </div>
+    </HudPageShell>
   );
 }

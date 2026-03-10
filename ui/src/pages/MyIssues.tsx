@@ -9,6 +9,7 @@ import { PriorityIcon } from "../components/PriorityIcon";
 import { EntityRow } from "../components/EntityRow";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
+import { HudPageShell } from "../components/HudPageShell";
 import { formatDate } from "../lib/utils";
 import { ListTodo } from "lucide-react";
 
@@ -40,15 +41,17 @@ export function MyIssues() {
   );
 
   return (
-    <div className="space-y-4">
-      {error && <p className="text-sm text-destructive">{error.message}</p>}
-
+    <HudPageShell
+      icon={ListTodo}
+      title="My Issues"
+      subtitle={`${myIssues.length} open issue${myIssues.length !== 1 ? "s" : ""}`}
+    >
+      {error && <p className="text-xs text-destructive font-mono">{(error as Error).message}</p>}
       {myIssues.length === 0 && (
         <EmptyState icon={ListTodo} message="No issues assigned to you." />
       )}
-
       {myIssues.length > 0 && (
-        <div className="border border-border">
+        <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
           {myIssues.map((issue) => (
             <EntityRow
               key={issue.id}
@@ -62,14 +65,12 @@ export function MyIssues() {
                 </>
               }
               trailing={
-                <span className="text-xs text-muted-foreground">
-                  {formatDate(issue.createdAt)}
-                </span>
+                <span className="text-[10px] text-white/40 font-mono">{formatDate(issue.createdAt)}</span>
               }
             />
           ))}
         </div>
       )}
-    </div>
+    </HudPageShell>
   );
 }

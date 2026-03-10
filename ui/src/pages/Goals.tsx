@@ -8,7 +8,7 @@ import { queryKeys } from "../lib/queryKeys";
 import { GoalTree } from "../components/GoalTree";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
-import { Button } from "@/components/ui/button";
+import { HudPageShell, HudButton } from "../components/HudPageShell";
 import { Target, Plus } from "lucide-react";
 
 export function Goals() {
@@ -35,29 +35,23 @@ export function Goals() {
   }
 
   return (
-    <div className="space-y-4">
-      {error && <p className="text-sm text-destructive">{error.message}</p>}
-
-      {goals && goals.length === 0 && (
-        <EmptyState
-          icon={Target}
-          message="No goals yet."
-          action="Add Goal"
-          onAction={() => openNewGoal()}
-        />
+    <HudPageShell
+      icon={Target}
+      title="Goals"
+      subtitle={`${goals?.length ?? 0} goals`}
+      action={
+        <HudButton onClick={() => openNewGoal()}>
+          <Plus className="h-3 w-3" /> New Goal
+        </HudButton>
+      }
+    >
+      {error && <p className="text-xs text-destructive font-mono">{(error as Error).message}</p>}
+      {goals?.length === 0 && (
+        <EmptyState icon={Target} message="No goals yet." action="Add Goal" onAction={() => openNewGoal()} />
       )}
-
       {goals && goals.length > 0 && (
-        <>
-          <div className="flex items-center justify-start">
-            <Button size="sm" variant="outline" onClick={() => openNewGoal()}>
-              <Plus className="h-3.5 w-3.5 mr-1.5" />
-              New Goal
-            </Button>
-          </div>
-          <GoalTree goals={goals} goalLink={(goal) => `/goals/${goal.id}`} />
-        </>
+        <GoalTree goals={goals} goalLink={(goal) => `/goals/${goal.id}`} />
       )}
-    </div>
+    </HudPageShell>
   );
 }
