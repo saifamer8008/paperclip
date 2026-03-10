@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Link, useNavigate, useSearch } from "@/lib/router";
+import { Link, useNavigate, useLocation } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { agentsApi } from "../api/agents";
 import { useCompany } from "../context/CompanyContext";
@@ -66,8 +66,9 @@ export function Agents() {
   const { openNewAgent } = useDialog();
   const { setBreadcrumbs } = useBreadcrumbs();
   const navigate = useNavigate();
-  const search = useSearch();
-  const view: View = search.view === "list" ? "list" : "office";
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const view: View = searchParams.get('view') === "list" ? "list" : "office";
 
   const { data: agents, isLoading, error } = useQuery({
     queryKey: queryKeys.agents.list(selectedCompanyId!),
@@ -79,7 +80,7 @@ export function Agents() {
   useEffect(() => { setBreadcrumbs([{ label: "Agents" }]); }, [setBreadcrumbs]);
 
   const setView = (newView: View) => {
-    navigate({ to: '/agents', search: { view: newView }, replace: true });
+    navigate(`/agents?view=${newView}`);
   };
 
   if (!selectedCompanyId) return <EmptyState icon={Bot} message="Select a company to view agents." />;
@@ -124,7 +125,7 @@ export function Agents() {
 
       {view === "office" && agents && selectedCompanyId && (
         <div className="w-full max-w-full">
-          <AgentOffice agents={agents} companyId={selectedCompanyId} />
+          <AgentOffice agents={agents} />
         </div>
       )}
 

@@ -15,7 +15,7 @@ import { Network, X } from "lucide-react";
 import { AGENT_ROLE_LABELS, type Agent } from "@paperclipai/shared";
 import { GlassCard } from "@/components/ui/glass-card";
 import { StatusBadge } from "@/components/StatusBadge";
-import { HudButton } from "@/components/ui/hud-button";
+import { HudButton } from "@/components/HudPageShell";
 
 // Layout constants
 const CARD_W = 200;
@@ -418,24 +418,24 @@ interface AgentSidePanelProps {
 
 function AgentSidePanel({ agent, companyId, onClose }: AgentSidePanelProps) {
   const navigate = useNavigate();
-  const { addToast } = useToast();
+  const { pushToast } = useToast();
 
-  const { mutate: invoke, isLoading: isInvoking } = useMutation({
+  const { mutate: invoke, isPending: isInvoking } = useMutation({
     mutationFn: (command: "heartbeat" | "ping") =>
-      agentsApi.invoke(agent.id, companyId, command),
+      agentsApi.invoke(agent.id, command),
     onSuccess: (_, command) => {
-      addToast({
+      pushToast({
         title: "Command Sent",
-        message: `Agent ${agent.name} was sent the '${command}' command.`,
-        type: "success",
+        body: `Agent ${agent.name} was sent the '${command}' command.`,
+        tone: "success",
       });
       onClose();
     },
     onError: (err: any, command) => {
-      addToast({
+      pushToast({
         title: "Command Failed",
-        message: `Failed to send '${command}' to ${agent.name}: ${err.message}`,
-        type: "error",
+        body: `Failed to send '${command}' to ${agent.name}: ${err.message}`,
+        tone: "error",
       });
     },
   });
@@ -482,29 +482,26 @@ function AgentSidePanel({ agent, companyId, onClose }: AgentSidePanelProps) {
             </div>
           </div>
 
-          <StatusBadge status={agent.status} className="self-start" />
+          <StatusBadge status={agent.status} />
 
           <div className="border-t border-border mt-2 pt-4 flex flex-col gap-2">
             <HudButton
-              variant="default"
               onClick={() => invoke("ping")}
               disabled={isInvoking}
-              className="w-full"
+              className="w-full justify-center"
             >
               ◈ PING
             </HudButton>
             <HudButton
-              variant="outline"
               onClick={() => navigate(`/agents/${agent.id}`)}
-              className="w-full"
+              className="w-full justify-center"
             >
               ▶ DETAIL
             </HudButton>
             <HudButton
-              variant="destructive"
               onClick={() => invoke("heartbeat")}
               disabled={isInvoking}
-              className="w-full"
+              className="w-full justify-center bg-destructive-dark text-destructive-foreground"
             >
               ◈ RUN NOW
             </HudButton>

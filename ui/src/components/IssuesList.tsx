@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "@/lib/router";
 import { useDialog } from "../context/DialogContext";
+import { useToast } from "../context/ToastContext";
 import { cn } from "../lib/utils";
 import { timeAgo } from "../lib/timeAgo";
 import { StatusBadge } from "../components/StatusBadge";
@@ -51,6 +52,7 @@ export function IssuesList({
   onUpdateIssue,
 }: IssuesListProps) {
   const { openNewIssue } = useDialog();
+  const { pushToast } = useToast();
   const [search, setSearch] = useState(initialSearch);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [isBulkSelect, setIsBulkSelect] = useState(false);
@@ -119,7 +121,7 @@ export function IssuesList({
             ))}
           </div>
           <HudButton
-            variant={isBulkSelect ? "primary" : "default"}
+            className={isBulkSelect ? "bg-primary-dark text-primary-foreground" : ""}
             onClick={() => {
               setIsBulkSelect(!isBulkSelect);
               setSelectedIssues(new Set());
@@ -226,13 +228,15 @@ export function IssuesList({
             >
                 <GlassCard className="flex items-center gap-4 p-3">
                     <span className="text-sm font-semibold">{selectedIssues.size} selected</span>
-                    <HudButton variant="primary" onClick={() => {
+                    <HudButton className="bg-primary-dark text-primary-foreground" onClick={() => {
                         selectedIssues.forEach(id => onUpdateIssue?.(id, { status: "done" }));
                         setSelectedIssues(new Set());
                     }}>
                         Mark Done
                     </HudButton>
-                    <HudButton onClick={() => alert("Assign Agent coming soon!")}>
+                    <HudButton
+                        onClick={() => pushToast({ title: "Coming Soon", body: "Bulk-assigning agents will be available shortly." })}
+                    >
                         Assign Agent
                     </HudButton>
                 </GlassCard>
