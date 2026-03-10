@@ -1,107 +1,111 @@
+import { useMemo } from 'react';
+import { useLocation } from '@/lib/router';
+import { cn } from '@/lib/utils';
 import {
-  Inbox,
-  CircleDot,
-  Target,
-  LayoutDashboard,
-  DollarSign,
-  History,
-  Search,
-  SquarePen,
-  Network,
-  Settings,
-} from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { SidebarSection } from "./SidebarSection";
-import { SidebarNavItem } from "./SidebarNavItem";
-import { SidebarProjects } from "./SidebarProjects";
-import { SidebarAgents } from "./SidebarAgents";
-import { useDialog } from "../context/DialogContext";
-import { useCompany } from "../context/CompanyContext";
-import { sidebarBadgesApi } from "../api/sidebarBadges";
-import { heartbeatsApi } from "../api/heartbeats";
-import { queryKeys } from "../lib/queryKeys";
-import { Button } from "@/components/ui/button";
+    Bot,
+    CircleDotDashed,
+    FileCode,
+    Github,
+    ShieldCheck,
+    LayoutDashboard,
+    LifeBuoy,
+    BookOpen,
+    ChevronLeft,
+    ChevronRight,
+    Settings,
+    DollarSign,
+} from 'lucide-react';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useCompany } from '@/context/CompanyContext';
+
+interface NavItem {
+    to: string;
+    label: string;
+    icon: React.ElementType;
+    exact?: boolean;
+}
 
 export function Sidebar() {
-  const { openNewIssue } = useDialog();
-  const { selectedCompanyId, selectedCompany } = useCompany();
-  const { data: sidebarBadges } = useQuery({
-    queryKey: queryKeys.sidebarBadges(selectedCompanyId!),
-    queryFn: () => sidebarBadgesApi.get(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
-  });
-  const { data: liveRuns } = useQuery({
-    queryKey: queryKeys.liveRuns(selectedCompanyId!),
-    queryFn: () => heartbeatsApi.liveRunsForCompany(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
-    refetchInterval: 10_000,
-  });
-  const liveRunCount = liveRuns?.length ?? 0;
+    const [isExpanded, setIsExpanded] = useLocalStorage('sidebar-expanded', true);
+    const location = useLocation();
+    const { selectedCompanyId } = useCompany();
 
-  function openSearch() {
-    document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
-  }
+    const navItems = useMemo<NavItem[]>(() => [
+        { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+        { to: '/issues', label: 'Issues', icon: CircleDotDashed },
+        { to: '/agents', label: 'Agents', icon: Bot },
+        { to: '/costs', label: 'Costs', icon: DollarSign },
+        { to: '/approvals', label: 'Approvals', icon: ShieldCheck },
+        { to: '/projects', label: 'Projects', icon: FileCode },
+    ], []);
 
-  return (
-    <aside className="w-60 h-full min-h-0 border-r border-border bg-background flex flex-col">
-      {/* Top bar: Company name (bold) + Search — aligned with top sections (no visible border) */}
-      <div className="flex items-center gap-1 px-3 h-12 shrink-0">
-        {selectedCompany?.brandColor && (
-          <div
-            className="w-4 h-4 rounded-sm shrink-0 ml-1"
-            style={{ backgroundColor: selectedCompany.brandColor }}
-          />
-        )}
-        <span className="flex-1 text-sm font-bold text-foreground truncate pl-1">
-          {selectedCompany?.name ?? "Select company"}
-        </span>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="text-muted-foreground shrink-0"
-          onClick={openSearch}
+    const bottomNavItems = useMemo<NavItem[]>(() => [
+        { to: '/settings', label: 'Settings', icon: Settings },
+        { to: 'https://github.com/paperclip-ai/paperclip', label: 'GitHub', icon: Github },
+        { to: 'https://docs.paperclip.ai', label: 'Docs', icon: BookOpen },
+        { to: 'https://join.slack.com/t/paperclip-ai/shared_invite/zt-2f43x5g9j-2b~tFjB~0yB~Yn_Z~Yn_Yw', label: 'Support', icon: LifeBuoy },
+    ], []);
+
+    const renderNavItem = (item: NavItem) => {
+        const isActive = item.exact
+            ? location.pathname === item.to
+            : location.pathname.startsWith(item.to);
+
+        const fullPath = item.to.startsWith('http') ? item.to : `/${selectedCompanyId}${item.to}`;
+
+        return (
+            <a
+                key={item.to}
+                href={fullPath}
+                target={item.to.startsWith('http') ? '_blank' : undefined}
+                rel={item.to.startsWith('http') ? 'noopener noreferrer' : undefined}
+                className={cn(
+                    'flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors duration-150 h-9',
+                    isActive
+                        ? 'bg-primary/10 text-primary border-l-2 border-primary rounded-l-none'
+                        : 'hover:bg-white/[.04] hover:text-foreground',
+                    !isExpanded && 'justify-center'
+                )}
+            >
+                <item.icon className="h-4 w-4 shrink-0" />
+                <span className={cn('text-sm font-medium', !isExpanded && 'sr-only')}>
+                    {item.label}
+                </span>
+            </a>
+        );
+    };
+
+    return (
+        <aside
+            className={cn(
+                'flex flex-col bg-background border-r border-border transition-[width] duration-200 ease-out',
+                isExpanded ? 'w-56' : 'w-14'
+            )}
         >
-          <Search className="h-4 w-4" />
-        </Button>
-      </div>
-
-      <nav className="flex-1 min-h-0 overflow-y-auto scrollbar-auto-hide flex flex-col gap-4 px-3 py-2">
-        <div className="flex flex-col gap-0.5">
-          {/* New Issue button aligned with nav items */}
-          <button
-            onClick={() => openNewIssue()}
-            className="flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
-          >
-            <SquarePen className="h-4 w-4 shrink-0" />
-            <span className="truncate">New Issue</span>
-          </button>
-          <SidebarNavItem to="/dashboard" label="Dashboard" icon={LayoutDashboard} liveCount={liveRunCount} />
-          <SidebarNavItem
-            to="/inbox"
-            label="Inbox"
-            icon={Inbox}
-            badge={sidebarBadges?.inbox}
-            badgeTone={sidebarBadges?.failedRuns ? "danger" : "default"}
-            alert={(sidebarBadges?.failedRuns ?? 0) > 0}
-          />
-        </div>
-
-        <SidebarSection label="Work">
-          <SidebarNavItem to="/issues" label="Issues" icon={CircleDot} />
-          <SidebarNavItem to="/goals" label="Goals" icon={Target} />
-        </SidebarSection>
-
-        <SidebarProjects />
-
-        <SidebarAgents />
-
-        <SidebarSection label="Company">
-          <SidebarNavItem to="/org" label="Org" icon={Network} />
-          <SidebarNavItem to="/costs" label="Costs" icon={DollarSign} />
-          <SidebarNavItem to="/activity" label="Activity" icon={History} />
-          <SidebarNavItem to="/company/settings" label="Settings" icon={Settings} />
-        </SidebarSection>
-      </nav>
-    </aside>
-  );
+            <div className={cn(
+                "flex h-14 items-center border-b border-border",
+                isExpanded ? "px-4" : "px-3 justify-center"
+            )}>
+                {isExpanded ? (
+                    <img src="/src/assets/lfg-logo-white.png" className="h-7 w-auto" alt="LFG" />
+                ) : (
+                    <img src="/src/assets/lfg-logo-mark.jpg" className="h-8 w-8 object-cover rounded-lg" alt="LFG" />
+                )}
+            </div>
+            <nav className="flex-1 space-y-1 p-2">
+                {navItems.map(renderNavItem)}
+            </nav>
+            <div className='p-2 border-t border-border'>
+                <div className="space-y-1">
+                    {bottomNavItems.map(renderNavItem)}
+                </div>
+                <button
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="mt-2 w-full flex items-center justify-center h-9 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/[.04] transition-colors duration-150"
+                >
+                    {isExpanded ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+                </button>
+            </div>
+        </aside>
+    )
 }

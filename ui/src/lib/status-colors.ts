@@ -41,42 +41,42 @@ export const issueStatusTextDefault = "text-muted-foreground";
 
 export const statusBadge: Record<string, string> = {
   // Agent statuses
-  active: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300",
-  running: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/50 dark:text-cyan-300",
-  paused: "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300",
-  idle: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300",
-  archived: "bg-muted text-muted-foreground",
+  active: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+  running: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+  paused: "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20",
+  idle: "bg-secondary text-muted-foreground border border-border",
+  archived: "bg-secondary text-muted-foreground border border-border",
 
   // Goal statuses
-  planned: "bg-muted text-muted-foreground",
-  achieved: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300",
-  completed: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300",
+  planned: "bg-secondary text-muted-foreground border border-border",
+  achieved: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+  completed: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
 
   // Run statuses
-  failed: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300",
-  timed_out: "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300",
-  succeeded: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300",
-  error: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300",
-  terminated: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300",
-  pending: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300",
+  failed: "bg-red-500/10 text-red-400 border border-red-500/20",
+  timed_out: "bg-red-500/10 text-red-400 border border-red-500/20",
+  succeeded: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+  error: "bg-red-500/10 text-red-400 border border-red-500/20",
+  terminated: "bg-red-500/10 text-red-400 border border-red-500/20",
+  pending: "bg-secondary text-muted-foreground border border-border",
 
   // Approval statuses
-  pending_approval: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300",
-  revision_requested: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300",
-  approved: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300",
-  rejected: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300",
+  pending_approval: "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20",
+  revision_requested: "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20",
+  approved: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+  rejected: "bg-red-500/10 text-red-400 border border-red-500/20",
 
-  // Issue statuses — consistent hues with issueStatusIcon above
-  backlog: "bg-muted text-muted-foreground",
-  todo: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300",
-  in_progress: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300",
-  in_review: "bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300",
-  blocked: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300",
-  done: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300",
-  cancelled: "bg-muted text-muted-foreground",
+  // Issue statuses
+  backlog: "bg-secondary text-muted-foreground border border-border",
+  todo: "bg-secondary text-muted-foreground border border-border",
+  in_progress: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+  in_review: "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20",
+  blocked: "bg-red-500/10 text-red-400 border border-red-500/20",
+  done: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+  cancelled: "bg-secondary text-muted-foreground border border-border",
 };
 
-export const statusBadgeDefault = "bg-muted text-muted-foreground";
+export const statusBadgeDefault = "bg-secondary text-muted-foreground border border-border";
 
 // ---------------------------------------------------------------------------
 // Agent status dot — solid background for small indicator dots

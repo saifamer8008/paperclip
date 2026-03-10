@@ -8,9 +8,10 @@ import { queryKeys } from "../lib/queryKeys";
 import { agentUrl } from "../lib/utils";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
-import { AgentIcon } from "../components/AgentIconPicker";
 import { Network } from "lucide-react";
 import { AGENT_ROLE_LABELS, type Agent } from "@paperclipai/shared";
+import { GlassCard } from "@/components/ui/glass-card";
+import { StatusBadge } from "@/components/StatusBadge";
 
 // Layout constants
 const CARD_W = 200;
@@ -112,28 +113,6 @@ function collectEdges(nodes: LayoutNode[]): Array<{ parent: LayoutNode; child: L
   nodes.forEach(walk);
   return edges;
 }
-
-// ── Status dot colors (raw hex for SVG) ─────────────────────────────────
-
-const adapterLabels: Record<string, string> = {
-  claude_local: "Claude",
-  codex_local: "Codex",
-  opencode_local: "OpenCode",
-  cursor: "Cursor",
-  openclaw_gateway: "OpenClaw Gateway",
-  process: "Process",
-  http: "HTTP",
-};
-
-const statusDotColor: Record<string, string> = {
-  running: "#22d3ee",
-  active: "#4ade80",
-  paused: "#facc15",
-  idle: "#facc15",
-  error: "#f87171",
-  terminated: "#a3a3a3",
-};
-const defaultDotColor = "#a3a3a3";
 
 // ── Main component ──────────────────────────────────────────────────────
 
@@ -266,156 +245,148 @@ export function OrgChart() {
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full h-[calc(100vh-4rem)] overflow-hidden relative bg-muted/20 border border-border rounded-lg"
-      style={{ cursor: dragging ? "grabbing" : "grab" }}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-      onWheel={handleWheel}
-    >
-      {/* Zoom controls */}
-      <div className="absolute top-3 right-3 z-10 flex flex-col gap-1">
-        <button
-          className="w-7 h-7 flex items-center justify-center bg-background border border-border rounded text-sm hover:bg-accent transition-colors"
-          onClick={() => {
-            const newZoom = Math.min(zoom * 1.2, 2);
-            const container = containerRef.current;
-            if (container) {
-              const cx = container.clientWidth / 2;
-              const cy = container.clientHeight / 2;
-              const scale = newZoom / zoom;
-              setPan({ x: cx - scale * (cx - pan.x), y: cy - scale * (cy - pan.y) });
-            }
-            setZoom(newZoom);
-          }}
-          aria-label="Zoom in"
-        >
-          +
-        </button>
-        <button
-          className="w-7 h-7 flex items-center justify-center bg-background border border-border rounded text-sm hover:bg-accent transition-colors"
-          onClick={() => {
-            const newZoom = Math.max(zoom * 0.8, 0.2);
-            const container = containerRef.current;
-            if (container) {
-              const cx = container.clientWidth / 2;
-              const cy = container.clientHeight / 2;
-              const scale = newZoom / zoom;
-              setPan({ x: cx - scale * (cx - pan.x), y: cy - scale * (cy - pan.y) });
-            }
-            setZoom(newZoom);
-          }}
-          aria-label="Zoom out"
-        >
-          &minus;
-        </button>
-        <button
-          className="w-7 h-7 flex items-center justify-center bg-background border border-border rounded text-[10px] hover:bg-accent transition-colors"
-          onClick={() => {
-            if (!containerRef.current) return;
-            const cW = containerRef.current.clientWidth;
-            const cH = containerRef.current.clientHeight;
-            const scaleX = (cW - 40) / bounds.width;
-            const scaleY = (cH - 40) / bounds.height;
-            const fitZoom = Math.min(scaleX, scaleY, 1);
-            const chartW = bounds.width * fitZoom;
-            const chartH = bounds.height * fitZoom;
-            setZoom(fitZoom);
-            setPan({ x: (cW - chartW) / 2, y: (cH - chartH) / 2 });
-          }}
-          title="Fit to screen"
-          aria-label="Fit chart to screen"
-        >
-          Fit
-        </button>
+    <div className="space-y-4">
+      <div>
+          <h1 className="text-2xl font-bold">Org Chart</h1>
+          <p className="text-sm text-muted-foreground">LFG Agent Hierarchy</p>
       </div>
-
-      {/* SVG layer for edges */}
-      <svg
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          width: "100%",
-          height: "100%",
-        }}
+      <div
+        ref={containerRef}
+        className="w-full h-[calc(100vh-10rem)] overflow-hidden relative bg-muted/20 border border-border rounded-lg"
+        style={{ cursor: dragging ? "grabbing" : "grab" }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onWheel={handleWheel}
       >
-        <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
-          {edges.map(({ parent, child }) => {
-            const x1 = parent.x + CARD_W / 2;
-            const y1 = parent.y + CARD_H;
-            const x2 = child.x + CARD_W / 2;
-            const y2 = child.y;
-            const midY = (y1 + y2) / 2;
+        {/* Zoom controls */}
+        <div className="absolute top-3 right-3 z-10 flex flex-col gap-1">
+          <button
+            className="w-7 h-7 flex items-center justify-center bg-background border border-border rounded text-sm hover:bg-accent transition-colors"
+            onClick={() => {
+              const newZoom = Math.min(zoom * 1.2, 2);
+              const container = containerRef.current;
+              if (container) {
+                const cx = container.clientWidth / 2;
+                const cy = container.clientHeight / 2;
+                const scale = newZoom / zoom;
+                setPan({ x: cx - scale * (cx - pan.x), y: cy - scale * (cy - pan.y) });
+              }
+              setZoom(newZoom);
+            }}
+            aria-label="Zoom in"
+          >
+            +
+          </button>
+          <button
+            className="w-7 h-7 flex items-center justify-center bg-background border border-border rounded text-sm hover:bg-accent transition-colors"
+            onClick={() => {
+              const newZoom = Math.max(zoom * 0.8, 0.2);
+              const container = containerRef.current;
+              if (container) {
+                const cx = container.clientWidth / 2;
+                const cy = container.clientHeight / 2;
+                const scale = newZoom / zoom;
+                setPan({ x: cx - scale * (cx - pan.x), y: cy - scale * (cy - pan.y) });
+              }
+              setZoom(newZoom);
+            }}
+            aria-label="Zoom out"
+          >
+            &minus;
+          </button>
+          <button
+            className="w-7 h-7 flex items-center justify-center bg-background border border-border rounded text-[10px] hover:bg-accent transition-colors"
+            onClick={() => {
+              if (!containerRef.current) return;
+              const cW = containerRef.current.clientWidth;
+              const cH = containerRef.current.clientHeight;
+              const scaleX = (cW - 40) / bounds.width;
+              const scaleY = (cH - 40) / bounds.height;
+              const fitZoom = Math.min(scaleX, scaleY, 1);
+              const chartW = bounds.width * fitZoom;
+              const chartH = bounds.height * fitZoom;
+              setZoom(fitZoom);
+              setPan({ x: (cW - chartW) / 2, y: (cH - chartH) / 2 });
+            }}
+            title="Fit to screen"
+            aria-label="Fit chart to screen"
+          >
+            Fit
+          </button>
+        </div>
+
+        {/* SVG layer for edges */}
+        <svg
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            width: "100%",
+            height: "100%",
+          }}
+        >
+          <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
+            {edges.map(({ parent, child }) => {
+              const x1 = parent.x + CARD_W / 2;
+              const y1 = parent.y + CARD_H;
+              const x2 = child.x + CARD_W / 2;
+              const y2 = child.y;
+              const midY = (y1 + y2) / 2;
+
+              return (
+                <path
+                  key={`${parent.id}-${child.id}`}
+                  d={`M ${x1} ${y1} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`}
+                  fill="none"
+                  stroke="hsl(var(--border))"
+                  strokeWidth={1.5}
+                />
+              );
+            })}
+          </g>
+        </svg>
+
+        {/* Card layer */}
+        <div
+          className="absolute inset-0"
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transformOrigin: "0 0",
+          }}
+        >
+          {allNodes.map((node) => {
+            const agent = agentMap.get(node.id);
 
             return (
-              <path
-                key={`${parent.id}-${child.id}`}
-                d={`M ${x1} ${y1} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`}
-                fill="none"
-                stroke="var(--border)"
-                strokeWidth={1.5}
-              />
+              <GlassCard
+                key={node.id}
+                data-org-card
+                glow={node.status === "running"}
+                className="absolute flex flex-col p-3 min-w-[160px] cursor-pointer select-none"
+                style={{
+                  left: node.x,
+                  top: node.y,
+                  width: CARD_W,
+                  minHeight: CARD_H,
+                }}
+                onClick={() => navigate(agent ? agentUrl(agent) : `/agents/${node.id}`)}
+              >
+                  <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500/20 to-emerald-700/20 flex items-center justify-center shrink-0">
+                          <span className="text-primary font-semibold text-sm">{node.name.charAt(0)}</span>
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                          <span className="text-sm font-semibold truncate">{node.name}</span>
+                          <span className="text-xs text-muted-foreground truncate">{agent?.title ?? roleLabel(node.role)}</span>
+                      </div>
+                  </div>
+                  <div className="mt-auto pt-2 flex justify-end">
+                      <StatusBadge status={node.status} />
+                  </div>
+              </GlassCard>
             );
           })}
-        </g>
-      </svg>
-
-      {/* Card layer */}
-      <div
-        className="absolute inset-0"
-        style={{
-          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-          transformOrigin: "0 0",
-        }}
-      >
-        {allNodes.map((node) => {
-          const agent = agentMap.get(node.id);
-          const dotColor = statusDotColor[node.status] ?? defaultDotColor;
-
-          return (
-            <div
-              key={node.id}
-              data-org-card
-              className="absolute bg-card border border-border rounded-lg shadow-sm hover:shadow-md hover:border-foreground/20 transition-[box-shadow,border-color] duration-150 cursor-pointer select-none"
-              style={{
-                left: node.x,
-                top: node.y,
-                width: CARD_W,
-                minHeight: CARD_H,
-              }}
-              onClick={() => navigate(agent ? agentUrl(agent) : `/agents/${node.id}`)}
-            >
-              <div className="flex items-center px-4 py-3 gap-3">
-                {/* Agent icon + status dot */}
-                <div className="relative shrink-0">
-                  <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">
-                    <AgentIcon icon={agent?.icon} className="h-4.5 w-4.5 text-foreground/70" />
-                  </div>
-                  <span
-                    className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card"
-                    style={{ backgroundColor: dotColor }}
-                  />
-                </div>
-                {/* Name + role + adapter type */}
-                <div className="flex flex-col items-start min-w-0 flex-1">
-                  <span className="text-sm font-semibold text-foreground leading-tight">
-                    {node.name}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground leading-tight mt-0.5">
-                    {agent?.title ?? roleLabel(node.role)}
-                  </span>
-                  {agent && (
-                    <span className="text-[10px] text-muted-foreground/60 font-mono leading-tight mt-1">
-                      {adapterLabels[agent.adapterType] ?? agent.adapterType}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        </div>
       </div>
     </div>
   );

@@ -11,20 +11,17 @@ import { queryKeys } from "../lib/queryKeys";
 import { EmptyState } from "../components/EmptyState";
 import { ActivityRow } from "../components/ActivityRow";
 import { PageSkeleton } from "../components/PageSkeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { GlassCard } from "@/components/ui/glass-card";
+import { cn } from "../lib/utils";
 import { History } from "lucide-react";
 import type { Agent } from "@paperclipai/shared";
+
+type FilterTab = "All" | "Agents" | "Issues" | "Costs";
 
 export function Activity() {
   const { selectedCompanyId } = useCompany();
   const { setBreadcrumbs } = useBreadcrumbs();
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState<FilterTab>("All");
 
   useEffect(() => {
     setBreadcrumbs([{ label: "Activity" }]);
@@ -89,51 +86,52 @@ export function Activity() {
     return <PageSkeleton variant="list" />;
   }
 
-  const filtered =
-    data && filter !== "all"
-      ? data.filter((e) => e.entityType === filter)
-      : data;
-
-  const entityTypes = data
-    ? [...new Set(data.map((e) => e.entityType))].sort()
-    : [];
+  const tabs: FilterTab[] = ["All", "Agents", "Issues", "Costs"];
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-end">
-        <Select value={filter} onValueChange={setFilter}>
-          <SelectTrigger className="w-[140px] h-8 text-xs">
-            <SelectValue placeholder="Filter by type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All types</SelectItem>
-            {entityTypes.map((type) => (
-              <SelectItem key={type} value={type}>
-                {type.charAt(0).toUpperCase() + type.slice(1)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <div className="space-y-6">
+      <div>
+          <h1 className="text-2xl font-bold">Activity Feed</h1>
+      </div>
+
+      <div className="flex items-center gap-2">
+          {tabs.map(tab => (
+              <button
+                  key={tab}
+                  onClick={() => setFilter(tab)}
+                  className={cn(
+                      "px-3 py-1 text-sm rounded-full transition-colors",
+                      filter === tab
+                          ? "bg-primary/10 text-primary border border-primary/20"
+                          : "text-muted-foreground hover:text-foreground"
+                  )}
+              >
+                  {tab}
+              </button>
+          ))}
       </div>
 
       {error && <p className="text-sm text-destructive">{error.message}</p>}
 
-      {filtered && filtered.length === 0 && (
+      {data && data.length === 0 && (
         <EmptyState icon={History} message="No activity yet." />
       )}
 
-      {filtered && filtered.length > 0 && (
-        <div className="border border-border divide-y divide-border">
-          {filtered.map((event) => (
-            <ActivityRow
-              key={event.id}
-              event={event}
-              agentMap={agentMap}
-              entityNameMap={entityNameMap}
-              entityTitleMap={entityTitleMap}
-            />
-          ))}
-        </div>
+      {data && data.length > 0 && (
+        <GlassCard className="overflow-hidden">
+            <div className="divide-y divide-border/50">
+            {data.map((event) => (
+                <ActivityRow
+                key={event.id}
+                event={event}
+                agentMap={agentMap}
+                entityNameMap={entityNameMap}
+                entityTitleMap={entityTitleMap}
+                className="p-4 hover:bg-white/[0.02] transition-colors"
+                />
+            ))}
+            </div>
+        </GlassCard>
       )}
     </div>
   );

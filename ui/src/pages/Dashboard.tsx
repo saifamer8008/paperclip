@@ -1,33 +1,32 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
-import { dashboardApi } from "../api/dashboard";
 import { activityApi } from "../api/activity";
 import { issuesApi } from "../api/issues";
 import { agentsApi } from "../api/agents";
 import { projectsApi } from "../api/projects";
+import { dashboardApi } from "../api/dashboard";
 import { heartbeatsApi } from "../api/heartbeats";
 import { useCompany } from "../context/CompanyContext";
 import { useDialog } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
-import { MetricCard } from "../components/MetricCard";
 import { EmptyState } from "../components/EmptyState";
-import { StatusIcon } from "../components/StatusIcon";
-import { PriorityIcon } from "../components/PriorityIcon";
 import { ActivityRow } from "../components/ActivityRow";
-import { Identity } from "../components/Identity";
+import { PageSkeleton } from "../components/PageSkeleton";
 import { timeAgo } from "../lib/timeAgo";
 import { cn, formatCents } from "../lib/utils";
-import { Bot, CircleDot, DollarSign, ShieldCheck, LayoutDashboard } from "lucide-react";
-import { ActiveAgentsPanel } from "../components/ActiveAgentsPanel";
-import { ChartCard, RunActivityChart, PriorityChart, IssueStatusChart, SuccessRateChart } from "../components/ActivityCharts";
-import { PageSkeleton } from "../components/PageSkeleton";
+import { Bot, CircleDot, DollarSign, ShieldCheck, LayoutDashboard, AlertTriangle } from "lucide-react";
 import type { Agent, Issue } from "@paperclipai/shared";
+import { StatusBadge } from "@/components/StatusBadge";
+import { Link } from "@/lib/router";
+import { GlassCard } from "@/components/ui/glass-card";
+import { DashboardMetric } from "@/components/DashboardMetric";
+import { LatestRunLog } from "@/components/LatestRunLog";
 
 function getRecentIssues(issues: Issue[]): Issue[] {
   return [...issues]
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 8);
 }
 
 export function Dashboard() {
@@ -72,15 +71,16 @@ export function Dashboard() {
     queryFn: () => projectsApi.list(selectedCompanyId!),
     enabled: !!selectedCompanyId,
   });
-
+  
   const { data: runs } = useQuery({
     queryKey: queryKeys.heartbeats(selectedCompanyId!),
     queryFn: () => heartbeatsApi.list(selectedCompanyId!),
     enabled: !!selectedCompanyId,
+    refetchInterval: 5000,
   });
 
   const recentIssues = issues ? getRecentIssues(issues) : [];
-  const recentActivity = useMemo(() => (activity ?? []).slice(0, 10), [activity]);
+  const recentActivity = useMemo(() => (activity ?? []).slice(0, 8), [activity]);
 
   useEffect(() => {
     for (const timer of activityAnimationTimersRef.current) {
@@ -157,11 +157,6 @@ export function Dashboard() {
     return map;
   }, [issues]);
 
-  const agentName = (id: string | null) => {
-    if (!id || !agents) return null;
-    return agents.find((a) => a.id === id)?.name ?? null;
-  };
-
   if (!selectedCompanyId) {
     if (companies.length === 0) {
       return (
@@ -178,182 +173,190 @@ export function Dashboard() {
     );
   }
 
-  if (isLoading) {
+  if (isLoading || !data) {
     return <PageSkeleton variant="dashboard" />;
   }
 
   const hasNoAgents = agents !== undefined && agents.length === 0;
+  const totalAgents = data.agents.active + data.agents.running + data.agents.paused + data.agents.error;
 
   return (
-    <div className="space-y-6">
-      {error && <p className="text-sm text-destructive">{error.message}</p>}
+    <div className="grid grid-cols-12 gap-6">
+      {/* Left rail */}
+      <div className="col-span-12 lg:col-span-8 space-y-6">
+        {error && <p className="text-sm text-destructive">{error.message}</p>}
 
-      {hasNoAgents && (
-        <div className="flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-500/25 dark:bg-amber-950/60">
-          <div className="flex items-center gap-2.5">
-            <Bot className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
-            <p className="text-sm text-amber-900 dark:text-amber-100">
-              You have no agents.
-            </p>
-          </div>
-          <button
-            onClick={() => openOnboarding({ initialStep: 2, companyId: selectedCompanyId! })}
-            className="text-sm font-medium text-amber-700 hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100 underline underline-offset-2 shrink-0"
-          >
-            Create one here
-          </button>
+        {hasNoAgents && (
+          <GlassCard className="flex items-center justify-between gap-3 p-4">
+            <div className="flex items-center gap-2.5">
+              <Bot className="h-5 w-5 text-muted-foreground shrink-0" />
+              <p className="text-sm">You have no agents.</p>
+            </div>
+            <button
+              onClick={() => openOnboarding({ initialStep: 2, companyId: selectedCompanyId! })}
+              className="text-sm font-medium text-primary hover:text-primary/80 underline underline-offset-2 shrink-0"
+            >
+              Create one here
+            </button>
+          </GlassCard>
+        )}
+
+        {/* Metric cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <DashboardMetric
+            icon={Bot}
+            value={totalAgents}
+            label="Agents"
+            to="/agents"
+            description={`${data.agents.running} running, ${data.agents.paused} paused`}
+            isAlert={data.agents.error > 0}
+          />
+          <DashboardMetric
+            icon={CircleDot}
+            value={data.tasks.inProgress}
+            label="In Progress"
+            to="/issues"
+            description={`${data.tasks.open} open, ${data.tasks.blocked} blocked`}
+          />
+          <DashboardMetric
+            icon={DollarSign}
+            value={formatCents(data.costs.monthSpendCents)}
+            label="Month Spend"
+            to="/costs"
+            description={
+              data.costs.monthBudgetCents > 0
+                ? `${data.costs.monthUtilizationPercent}% of budget`
+                : "No budget set"
+            }
+            isAlert={data.costs.monthUtilizationPercent > 90}
+          />
+          <DashboardMetric
+            icon={ShieldCheck}
+            value={data.pendingApprovals}
+            label="Approvals"
+            to="/approvals"
+            description={`${data.staleTasks} stale tasks`}
+            isAlert={data.pendingApprovals > 0 || data.staleTasks > 0}
+          />
         </div>
-      )}
 
-      <ActiveAgentsPanel companyId={selectedCompanyId!} />
+        <LatestRunLog runs={runs} />
+      </div>
 
-      {data && (
-        <>
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-1 sm:gap-2">
-            <MetricCard
-              icon={Bot}
-              value={data.agents.active + data.agents.running + data.agents.paused + data.agents.error}
-              label="Agents Enabled"
-              to="/agents"
-              description={
-                <span>
-                  {data.agents.running} running{", "}
-                  {data.agents.paused} paused{", "}
-                  {data.agents.error} errors
-                </span>
-              }
-            />
-            <MetricCard
-              icon={CircleDot}
-              value={data.tasks.inProgress}
-              label="Tasks In Progress"
-              to="/issues"
-              description={
-                <span>
-                  {data.tasks.open} open{", "}
-                  {data.tasks.blocked} blocked
-                </span>
-              }
-            />
-            <MetricCard
-              icon={DollarSign}
-              value={formatCents(data.costs.monthSpendCents)}
-              label="Month Spend"
-              to="/costs"
-              description={
-                <span>
-                  {data.costs.monthBudgetCents > 0
-                    ? `${data.costs.monthUtilizationPercent}% of ${formatCents(data.costs.monthBudgetCents)} budget`
-                    : "Unlimited budget"}
-                </span>
-              }
-            />
-            <MetricCard
-              icon={ShieldCheck}
-              value={data.pendingApprovals}
-              label="Pending Approvals"
-              to="/approvals"
-              description={
-                <span>
-                  {data.staleTasks} stale tasks
-                </span>
-              }
-            />
-          </div>
-
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <ChartCard title="Run Activity" subtitle="Last 14 days">
-              <RunActivityChart runs={runs ?? []} />
-            </ChartCard>
-            <ChartCard title="Issues by Priority" subtitle="Last 14 days">
-              <PriorityChart issues={issues ?? []} />
-            </ChartCard>
-            <ChartCard title="Issues by Status" subtitle="Last 14 days">
-              <IssueStatusChart issues={issues ?? []} />
-            </ChartCard>
-            <ChartCard title="Success Rate" subtitle="Last 14 days">
-              <SuccessRateChart runs={runs ?? []} />
-            </ChartCard>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-4">
-            {/* Recent Activity */}
-            {recentActivity.length > 0 && (
-              <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-                  Recent Activity
-                </h3>
-                <div className="border border-border divide-y divide-border overflow-hidden">
-                  {recentActivity.map((event) => (
-                    <ActivityRow
-                      key={event.id}
-                      event={event}
-                      agentMap={agentMap}
-                      entityNameMap={entityNameMap}
-                      entityTitleMap={entityTitleMap}
-                      className={animatedActivityIds.has(event.id) ? "activity-row-enter" : undefined}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Recent Tasks */}
-            <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-                Recent Tasks
-              </h3>
-              {recentIssues.length === 0 ? (
-                <div className="border border-border p-4">
-                  <p className="text-sm text-muted-foreground">No tasks yet.</p>
-                </div>
-              ) : (
-                <div className="border border-border divide-y divide-border overflow-hidden">
-                  {recentIssues.slice(0, 10).map((issue) => (
+      {/* Right rail */}
+      <div className="col-span-12 lg:col-span-4 space-y-6">
+        {/* Active Agents */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+            Active Agents
+          </h3>
+          <GlassCard className="p-4">
+            {agents && agents.length > 0 ? (
+              <div className="space-y-3">
+                {agents
+                  .filter((a) => a.status !== "inactive")
+                  .slice(0, 10)
+                  .map((agent) => (
                     <Link
-                      key={issue.id}
-                      to={`/issues/${issue.identifier ?? issue.id}`}
-                      className="px-4 py-3 text-sm cursor-pointer hover:bg-accent/50 transition-colors no-underline text-inherit block"
+                      key={agent.id}
+                      to={`/agents/${agent.id}`}
+                      className="flex items-center justify-between no-underline text-inherit glass-hover -m-2 p-2 rounded-lg"
                     >
-                      <div className="flex items-start gap-2 sm:items-center sm:gap-3">
-                        {/* Status icon - left column on mobile */}
-                        <span className="shrink-0 sm:hidden">
-                          <StatusIcon status={issue.status} />
-                        </span>
-
-                        {/* Right column on mobile: title + metadata stacked */}
-                        <span className="flex min-w-0 flex-1 flex-col gap-1 sm:contents">
-                          <span className="line-clamp-2 text-sm sm:order-2 sm:flex-1 sm:min-w-0 sm:line-clamp-none sm:truncate">
-                            {issue.title}
-                          </span>
-                          <span className="flex items-center gap-2 sm:order-1 sm:shrink-0">
-                            <span className="hidden sm:inline-flex"><PriorityIcon priority={issue.priority} /></span>
-                            <span className="hidden sm:inline-flex"><StatusIcon status={issue.status} /></span>
-                            <span className="text-xs font-mono text-muted-foreground">
-                              {issue.identifier ?? issue.id.slice(0, 8)}
-                            </span>
-                            {issue.assigneeAgentId && (() => {
-                              const name = agentName(issue.assigneeAgentId);
-                              return name
-                                ? <span className="hidden sm:inline-flex"><Identity name={name} size="sm" /></span>
-                                : null;
-                            })()}
-                            <span className="text-xs text-muted-foreground sm:hidden">&middot;</span>
-                            <span className="text-xs text-muted-foreground shrink-0 sm:order-last">
-                              {timeAgo(issue.updatedAt)}
-                            </span>
-                          </span>
-                        </span>
+                      <div className="flex items-center gap-2">
+                        <Bot className="h-4 w-4 text-primary" />
+                        <span className="font-medium">{agent.name}</span>
                       </div>
+                      <StatusBadge status={agent.status} />
                     </Link>
                   ))}
-                </div>
-              )}
-            </div>
-          </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No active agents.</p>
+            )}
+          </GlassCard>
+        </div>
 
-        </>
-      )}
+        {/* Recent Tasks */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+            Recent Tasks
+          </h3>
+          {recentIssues.length > 0 ? (
+            <GlassCard className="p-2">
+              <div className="space-y-1">
+                {recentIssues.map((issue) => (
+                  <Link
+                    key={issue.id}
+                    to={`/issues/${issue.identifier ?? issue.id}`}
+                    className="flex items-center justify-between text-sm no-underline text-inherit glass-hover p-2 rounded-lg"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate">{issue.title}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {issue.identifier} &middot; {timeAgo(issue.updatedAt)}
+                      </div>
+                    </div>
+                    <StatusBadge status={issue.status} />
+                  </Link>
+                ))}
+              </div>
+            </GlassCard>
+          ) : (
+            <GlassCard className="p-4">
+              <p className="text-sm text-muted-foreground">No tasks yet.</p>
+            </GlassCard>
+          )}
+        </div>
+
+        {/* Recent Activity */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+            Recent Activity
+          </h3>
+          {recentActivity.length > 0 ? (
+            <GlassCard>
+              <div className="divide-y divide-border/50">
+                {recentActivity.map((event) => (
+                  <ActivityRow
+                    key={event.id}
+                    event={event}
+                    agentMap={agentMap}
+                    entityNameMap={entityNameMap}
+                    entityTitleMap={entityTitleMap}
+                    className={cn(
+                      "p-3",
+                      animatedActivityIds.has(event.id) && "activity-row-enter"
+                    )}
+                  />
+                ))}
+              </div>
+            </GlassCard>
+          ) : (
+            <GlassCard className="p-4">
+              <p className="text-sm text-muted-foreground">No activity yet.</p>
+            </GlassCard>
+          )}
+        </div>
+
+        {/* Stale Tasks */}
+        {data.staleTasks > 0 && (
+          <GlassCard className="p-4 flex items-start gap-3 border-yellow-400/60">
+            <AlertTriangle className="h-5 w-5 text-yellow-400 shrink-0" />
+            <div>
+              <div className="font-semibold">{data.staleTasks} Stale Tasks</div>
+              <p className="text-sm text-muted-foreground">
+                Tasks that have not been updated in over a week.
+              </p>
+              <Link
+                to="/issues?status=stale"
+                className="text-sm font-medium text-yellow-400 hover:text-yellow-300 transition-colors mt-2 block"
+              >
+                View stale tasks
+              </Link>
+            </div>
+          </GlassCard>
+        )}
+      </div>
     </div>
   );
 }
