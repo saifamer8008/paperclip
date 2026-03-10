@@ -5,7 +5,6 @@ import { issuesApi } from "../api/issues";
 import { agentsApi } from "../api/agents";
 import { projectsApi } from "../api/projects";
 import { dashboardApi } from "../api/dashboard";
-import { heartbeatsApi } from "../api/heartbeats";
 import { useCompany } from "../context/CompanyContext";
 import { useDialog } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
@@ -21,7 +20,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Link } from "@/lib/router";
 import { GlassCard } from "@/components/ui/glass-card";
 import { DashboardMetric } from "@/components/DashboardMetric";
-import { LatestRunLog } from "@/components/LatestRunLog";
+import { AgentOffice } from "@/components/AgentOffice";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 function CostTrendChart({ spendCents }: { spendCents: number }) {
@@ -114,13 +113,6 @@ export function Dashboard() {
     queryKey: queryKeys.projects.list(selectedCompanyId!),
     queryFn: () => projectsApi.list(selectedCompanyId!),
     enabled: !!selectedCompanyId,
-  });
-
-  const { data: runs } = useQuery({
-    queryKey: queryKeys.heartbeats(selectedCompanyId!),
-    queryFn: () => heartbeatsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
-    refetchInterval: 5000,
   });
 
   const recentIssues = issues ? getRecentIssues(issues) : [];
@@ -216,32 +208,8 @@ export function Dashboard() {
         <DashboardMetric icon={ShieldCheck} value={data.pendingApprovals} label="Approvals" to="/approvals" description={`${data.staleTasks} stale tasks`} isAlert={data.pendingApprovals > 0 || data.staleTasks > 0} />
       </div>
 
-      {/* Row 2: Run log (left) + Agents (right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2">
-          <LatestRunLog runs={runs} />
-        </div>
-        <div className="space-y-2">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Active Agents</h3>
-          <GlassCard className="p-3">
-            {activeAgents.length > 0 ? (
-              <div className="space-y-0.5">
-                {activeAgents.slice(0, 10).map((agent) => (
-                  <Link key={agent.id} to={`/agents/${agent.id}`} className="flex items-center justify-between no-underline text-inherit -mx-1 px-2 py-1.5 rounded-lg hover:bg-white/[0.05] transition-colors">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Bot className="h-3.5 w-3.5 text-primary shrink-0" />
-                      <span className="text-sm truncate">{agent.name}</span>
-                    </div>
-                    <StatusBadge status={agent.status} />
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground py-2">No active agents.</p>
-            )}
-          </GlassCard>
-        </div>
-      </div>
+      {/* Row 2: Agent Office — full width 2D interactive floor */}
+      <AgentOffice agents={agents} />
 
       {/* Row 3: Cost trend + System health + Recent tasks */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
