@@ -16,7 +16,7 @@ import { PageSkeleton } from "../components/PageSkeleton";
 import { timeAgo } from "../lib/timeAgo";
 import { Link } from "@/lib/router";
 import { Bot, Wifi, History, Send, Info, CircleDotDashed, Zap, CheckCircle2 } from "lucide-react";
-import type { Agent, ActivityEvent, HeartbeatRun } from "@paperclipai/shared";
+import type { Agent, ActivityEvent, HeartbeatRun, Issue } from "@paperclipai/shared";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Palette
@@ -126,6 +126,68 @@ function TopBar({ totalAgents, runningAgents }: { totalAgents: number; runningAg
 // ─────────────────────────────────────────────────────────────────────────────
 //  Elite agent card
 // ─────────────────────────────────────────────────────────────────────────────
+// ─── Razor (Saif Amer) special card ───────────────────────────────────────────
+function RazorCard() {
+  const color = "#C9A84C";
+  return (
+    <div className="group relative flex flex-col rounded-2xl overflow-hidden"
+      style={{
+        background: `linear-gradient(145deg, rgba(201,168,76,0.08) 0%, rgba(0,0,0,0.65) 100%)`,
+        border: `1px solid ${color}45`,
+        boxShadow: `0 0 28px ${color}18, inset 0 1px 0 rgba(201,168,76,0.12)`,
+      }}>
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none rounded-2xl"
+        style={{ background: `radial-gradient(ellipse 80% 60% at 50% 0%, ${color}14 0%, transparent 70%)` }} />
+
+      {/* Avatar band */}
+      <div className="relative flex flex-col items-center pt-5 pb-3 px-4"
+        style={{ background: `linear-gradient(180deg, ${color}12 0%, transparent 100%)` }}>
+        {/* Hexagon avatar */}
+        <div className="relative mb-2" style={{ width: 58, height: 58 }}>
+          <svg viewBox="0 0 58 58" width={58} height={58} style={{ position: "absolute", inset: 0 }}>
+            {/* Hexagon */}
+            <polygon points="29,2 52,15.5 52,42.5 29,56 6,42.5 6,15.5"
+              fill={`${color}20`} stroke={color} strokeWidth="1.5" strokeOpacity="0.8" />
+            <polygon points="29,10 45,19.5 45,38.5 29,48 13,38.5 13,19.5"
+              fill="none" stroke={color} strokeWidth="0.7" strokeOpacity="0.4" />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-[15px] font-black tracking-wider"
+              style={{ color, fontFamily: "monospace", textShadow: `0 0 14px ${color}` }}>
+              🗡️
+            </span>
+          </div>
+          <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2"
+            style={{ background: "#34d399", borderColor: "rgba(5,5,10,1)", boxShadow: "0 0 6px #34d399" }} />
+        </div>
+        <div className="text-center">
+          <div className="text-[13px] font-black leading-tight tracking-wide" style={{ color, fontFamily: "monospace" }}>
+            Razor
+          </div>
+          <div className="text-[10px] mt-0.5 font-medium" style={{ color: color + "88", fontFamily: "monospace" }}>
+            Saif Amer · Founder
+          </div>
+        </div>
+      </div>
+
+      <div className="px-3 pb-3 pt-1 flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[9px] font-black tracking-widest px-2 py-0.5 rounded-full"
+            style={{ color: "#34d399", background: "rgba(52,211,153,0.12)", border: "1px solid rgba(52,211,153,0.28)", fontFamily: "monospace" }}>
+            ONLINE
+          </span>
+          <span className="text-[9px] text-white/30 font-mono">Human</span>
+        </div>
+        <div className="text-[9px] font-black tracking-widest py-1.5 rounded-lg text-center"
+          style={{ background: `${color}10`, border: `1px solid ${color}22`, color: color + "88", fontFamily: "monospace" }}>
+          YOU
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 function AgentCard({ agent, onPing }: { agent: Agent; onPing: (agent: Agent) => void }) {
   const color   = STATUS_COLOR[agent.status] ?? "#6b7280";
   const label   = STATUS_LABEL[agent.status]  ?? agent.status.toUpperCase();
@@ -148,31 +210,26 @@ function AgentCard({ agent, onPing }: { agent: Agent; onPing: (agent: Agent) => 
       <div className="relative flex flex-col items-center pt-5 pb-3 px-4"
         style={{ background: `linear-gradient(180deg, ${color}10 0%, transparent 100%)` }}>
 
-        {/* Status ring + avatar */}
-        <div className="relative mb-2">
-          {/* animated ring when live */}
+        {/* Diamond avatar */}
+        <div className="relative mb-2" style={{ width: 58, height: 58 }}>
           {isLive && (
-            <div className="absolute inset-[-3px] rounded-full animate-ping opacity-30"
-              style={{ border: `2px solid ${color}` }} />
+            <div className="absolute inset-0 animate-ping opacity-15 pointer-events-none"
+              style={{ clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)", background: color }} />
           )}
-          <div className="relative flex items-center justify-center rounded-full font-black text-xl"
-            style={{
-              width: 56, height: 56,
-              background: `radial-gradient(circle, ${color}22 0%, rgba(0,0,0,0.6) 100%)`,
-              border: `2px solid ${color}55`,
-              color,
-              fontFamily: "monospace",
-              boxShadow: `0 0 16px ${color}33`,
-              letterSpacing: "0.05em",
-            }}>
-            {initials}
+          <svg viewBox="0 0 58 58" width={58} height={58} style={{ position: "absolute", inset: 0 }}>
+            <polygon points="29,2 56,29 29,56 2,29"
+              fill={`${color}18`} stroke={color} strokeWidth="1.4" strokeOpacity="0.65" />
+            <polygon points="29,11 47,29 29,47 11,29"
+              fill="none" stroke={color} strokeWidth="0.7" strokeOpacity="0.35" />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-[13px] font-black tracking-wider"
+              style={{ color, fontFamily: "monospace", textShadow: `0 0 10px ${color}99` }}>
+              {initials}
+            </span>
           </div>
           <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2"
-            style={{
-              background: color,
-              borderColor: "rgba(5,5,10,1)",
-              boxShadow: `0 0 6px ${color}`,
-            }} />
+            style={{ background: color, borderColor: "rgba(5,5,10,1)", boxShadow: `0 0 6px ${color}` }} />
         </div>
 
         {/* Name + title */}
@@ -272,15 +329,134 @@ function TaskRow({ title, status, assignee, id }: { title: string; status: strin
 type CmdTab = "compose" | "example";
 
 const EXAMPLE_THREAD = [
-  { from: "You", text: "Francis — status update on the LFG structure doc?", ts: "9:01 AM", sent: true },
-  { from: "Francis", text: "Hey boss. Draft is 80% complete. Waiting on Austin's input for the governance section. Will have full draft by EOD.", ts: "9:04 AM", sent: false },
-  { from: "You", text: "Good. Ping Austin to prioritize that today.", ts: "9:05 AM", sent: true },
-  { from: "You", text: "Austin — Francis needs your governance section input for the LFG doc. Please prioritize today.", ts: "9:05 AM", sent: true },
-  { from: "Austin", text: "On it. I'll send over my section within the hour. Also flagging — Pose contract needs a signature by tomorrow.", ts: "9:12 AM", sent: false },
-  { from: "You", text: "Got it. Remind me at 4pm.", ts: "9:13 AM", sent: true },
-  { from: "System", text: "⏰ Reminder set: Pose contract signature — 4:00 PM", ts: "9:13 AM", sent: false },
+  { from: "Razor", text: "Austin — Pose contract status. Where are we.", ts: "9:01 AM", sent: true },
+  { from: "Austin", text: "Counter-party sent edits last night. Reviewing now. Should have redlines back to them by noon.", ts: "9:03 AM", sent: false },
+  { from: "Razor", text: "Good. Egide — confirm the Ghana VASP filing is still tracking for Thursday.", ts: "9:04 AM", sent: true },
+  { from: "Egide", text: "Confirmed. Docs are staged. Waiting on one KYC document from the partner side, following up now.", ts: "9:07 AM", sent: false },
+  { from: "Razor", text: "Ping me the second that lands. Remind me Thursday 8am regardless.", ts: "9:08 AM", sent: true },
+  { from: "System", text: "⏰ Reminder set: Ghana VASP filing check — Thursday 8:00 AM", ts: "9:08 AM", sent: false },
+  { from: "Austin", text: "Also flagging — Syntax Capital LP agreement has a clause that needs Razor's eyes before we sign. Dropping it in issues.", ts: "9:15 AM", sent: false },
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  Bottlenecks panel
+// ─────────────────────────────────────────────────────────────────────────────
+function BottlenecksPanel({ issues, agentMap, companyId }: {
+  issues: Issue[];
+  agentMap: Map<string, Agent>;
+  companyId: string;
+}) {
+  const qc = useQueryClient();
+  const { pushToast } = useToast();
+
+  const panicMutation = useMutation({
+    mutationFn: async (issue: Issue) => {
+      const agentId = issue.assigneeAgentId;
+      if (!agentId) return;
+      await agentsApi.wakeup(agentId,
+        { source: "on_demand", triggerDetail: "manual", reason: `🚨 PANIC: "${issue.title}" is critically bottlenecked. Immediate action required.` },
+        companyId
+      );
+    },
+    onSuccess: (_, issue) => {
+      pushToast({ title: `Pinged agent on: ${issue.title.slice(0, 40)}`, tone: "warn" });
+      qc.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
+    },
+    onError: () => pushToast({ title: "Panic ping failed", tone: "error" }),
+  });
+
+  const panicAll = async () => {
+    for (const issue of issues) {
+      if (issue.assigneeAgentId) {
+        await agentsApi.wakeup(issue.assigneeAgentId,
+          { source: "on_demand", triggerDetail: "manual", reason: `🚨 ALL-HANDS: Critical bottleneck alert. Task "${issue.title}" needs immediate resolution.` },
+          companyId
+        );
+      }
+    }
+    pushToast({ title: `Panic sent to ${issues.filter(i => i.assigneeAgentId).length} agents`, tone: "warn" });
+  };
+
+  if (issues.length === 0) return null;
+
+  return (
+    <div className="shrink-0 rounded-2xl overflow-hidden"
+      style={{ background: "rgba(248,113,113,0.04)", border: "1px solid rgba(248,113,113,0.2)" }}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2.5"
+        style={{ borderBottom: "1px solid rgba(248,113,113,0.12)" }}>
+        <div className="flex items-center gap-2">
+          <span className="text-sm animate-pulse">🚨</span>
+          <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: "#f87171", fontFamily: "monospace" }}>
+            Bottlenecks
+          </span>
+          <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold"
+            style={{ background: "rgba(248,113,113,0.12)", color: "#f87171", border: "1px solid rgba(248,113,113,0.25)", fontFamily: "monospace" }}>
+            {issues.length}
+          </span>
+        </div>
+        <button
+          onClick={panicAll}
+          className="flex items-center gap-1.5 text-[9px] font-black tracking-widest uppercase px-3 py-1 rounded-full transition-all hover:scale-105 active:scale-95"
+          style={{
+            background: "linear-gradient(135deg, rgba(248,113,113,0.25) 0%, rgba(239,68,68,0.2) 100%)",
+            border: "1px solid rgba(248,113,113,0.5)",
+            color: "#f87171",
+            fontFamily: "monospace",
+            boxShadow: "0 0 12px rgba(248,113,113,0.2)",
+          }}
+        >
+          <Zap className="h-2.5 w-2.5" /> PANIC ALL
+        </button>
+      </div>
+
+      {/* Task rows */}
+      <div className="py-1">
+        {issues.map(issue => {
+          const agent = issue.assigneeAgentId ? agentMap.get(issue.assigneeAgentId) : null;
+          const agentColor = agent ? (STATUS_COLOR[agent.status] ?? "#6b7280") : "#6b7280";
+          return (
+            <div key={issue.id}
+              className="flex items-center gap-2.5 px-3 py-2 hover:bg-white/[0.02] transition-colors group">
+              <span className="text-[10px] animate-pulse">⚠️</span>
+              <div className="flex-1 min-w-0">
+                <Link to={`/issues/${issue.id}`} className="no-underline">
+                  <span className="text-[11px] text-white/75 truncate block group-hover:text-white/95 transition-colors">
+                    {issue.title}
+                  </span>
+                </Link>
+                {agent && (
+                  <span className="text-[9px] font-bold" style={{ color: agentColor, fontFamily: "monospace" }}>
+                    {agent.name.replace(/\s*Agent\s*$/i, "")}
+                  </span>
+                )}
+              </div>
+              <span className="text-[9px] font-black tracking-widest px-2 py-0.5 rounded-full shrink-0"
+                style={{ color: "#f87171", background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.25)", fontFamily: "monospace" }}>
+                {issue.priority?.toUpperCase() ?? "CRITICAL"}
+              </span>
+              <button
+                onClick={() => panicMutation.mutate(issue)}
+                disabled={!issue.assigneeAgentId || panicMutation.isPending}
+                className="shrink-0 text-[8px] font-black tracking-widest uppercase px-2 py-1 rounded-lg transition-all hover:scale-105 disabled:opacity-30"
+                style={{
+                  background: "rgba(248,113,113,0.12)",
+                  border: "1px solid rgba(248,113,113,0.3)",
+                  color: "#f87171",
+                  fontFamily: "monospace",
+                }}
+              >
+                PING
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 function CommandPanel({
   agents,
   selectedAgent,
@@ -533,11 +709,23 @@ export function Dashboard() {
   const runningAgents = teamAgents.filter(a => a.status === "running").length;
   const activity      = useMemo(() => (activityRaw ?? []).slice(0, 50), [activityRaw]);
 
-  // Open issues = tasks panel
-  const openTasks = useMemo(() =>
+  // Tasks split: human (assigneeUserId set, no agent) vs agent
+  const allOpen = useMemo(() =>
+    (issues ?? []).filter(i => i.status !== "done" && i.status !== "cancelled" && i.status !== "backlog"),
+    [issues]
+  );
+  const humanTasks = useMemo(() => allOpen.filter(i => !!i.assigneeUserId && !i.assigneeAgentId).slice(0, 6), [allOpen]);
+  const agentTasks = useMemo(() => allOpen.filter(i => !!i.assigneeAgentId).slice(0, 6), [allOpen]);
+  const unassignedTasks = useMemo(() => allOpen.filter(i => !i.assigneeUserId && !i.assigneeAgentId).slice(0, 4), [allOpen]);
+
+  // Bottlenecks: blocked or critical+overdue (using priority=critical or status=blocked as proxy)
+  const bottleneckTasks = useMemo(() =>
     (issues ?? [])
-      .filter(i => i.status !== "done" && i.status !== "cancelled")
-      .slice(0, 8),
+      .filter(i =>
+        i.status !== "done" && i.status !== "cancelled" &&
+        (i.priority === "critical" || i.status === "in_review")
+      )
+      .slice(0, 5),
     [issues]
   );
 
@@ -595,20 +783,26 @@ export function Dashboard() {
             {teamAgents.length === 0 ? (
               <p className="text-[10px] text-white/25 font-mono py-4 text-center">No team agents</p>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
+              <div className="flex flex-wrap justify-center gap-2.5">
+                {/* Razor (Saif) — always first, special "ONLINE" card */}
+                <div className="w-[calc(20%-10px)] min-w-[140px] max-w-[180px]">
+                  <RazorCard />
+                </div>
                 {teamAgents
                   .sort((a, b) => {
                     const order = ["running","error","pending_approval","paused","idle","terminated"];
                     return order.indexOf(a.status) - order.indexOf(b.status);
                   })
                   .map(agent => (
-                    <AgentCard key={agent.id} agent={agent} onPing={setSelectedAgent} />
+                    <div key={agent.id} className="w-[calc(20%-10px)] min-w-[140px] max-w-[180px]">
+                      <AgentCard agent={agent} onPing={setSelectedAgent} />
+                    </div>
                   ))}
               </div>
             )}
           </div>
 
-          {/* SECTION: Open tasks (Notion-style) */}
+          {/* SECTION: Open Tasks — split human / agent */}
           <div className="shrink-0 rounded-2xl overflow-hidden"
             style={{ background: "rgba(0,0,0,0.4)", border: `1px solid rgba(255,255,255,0.06)` }}>
             <div className="flex items-center justify-between px-4 py-2.5"
@@ -620,30 +814,59 @@ export function Dashboard() {
                 </span>
                 <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold"
                   style={{ background: GOLD + "18", color: GOLD + "bb", fontFamily: "monospace" }}>
-                  {openTasks.length}
+                  {allOpen.length}
                 </span>
               </div>
               <Link to="/issues" className="text-[9px] font-bold tracking-widest uppercase hover:opacity-70 transition-opacity"
-                style={{ color: GOLD + "99" }}>
-                All →
-              </Link>
+                style={{ color: GOLD + "99" }}>All →</Link>
             </div>
-            <div className="py-1">
-              {openTasks.length === 0 ? (
-                <p className="text-[10px] text-white/25 font-mono py-4 text-center">No open tasks</p>
-              ) : (
-                openTasks.map(issue => (
-                  <TaskRow
-                    key={issue.id}
-                    id={issue.id}
-                    title={issue.title}
-                    status={issue.status}
-                    assignee={agentShortName(issue.assigneeAgentId)}
-                  />
-                ))
-              )}
+
+            <div className="grid grid-cols-2 divide-x divide-white/[0.04]">
+              {/* Human tasks */}
+              <div className="py-1">
+                <div className="flex items-center gap-1.5 px-3 py-1.5">
+                  <span className="text-[8px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded-full"
+                    style={{ color: "#a78bfa", background: "rgba(167,139,250,0.1)", border: "1px solid rgba(167,139,250,0.2)", fontFamily: "monospace" }}>
+                    👤 Human
+                  </span>
+                </div>
+                {humanTasks.length === 0 && unassignedTasks.length === 0 ? (
+                  <p className="text-[9px] text-white/20 font-mono px-3 pb-2">None</p>
+                ) : (
+                  <>
+                    {humanTasks.map(issue => (
+                      <TaskRow key={issue.id} id={issue.id} title={issue.title} status={issue.status} assignee="Razor" />
+                    ))}
+                    {unassignedTasks.map(issue => (
+                      <TaskRow key={issue.id} id={issue.id} title={issue.title} status={issue.status} />
+                    ))}
+                  </>
+                )}
+              </div>
+
+              {/* Agent tasks */}
+              <div className="py-1">
+                <div className="flex items-center gap-1.5 px-3 py-1.5">
+                  <span className="text-[8px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded-full"
+                    style={{ color: "#34d399", background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", fontFamily: "monospace" }}>
+                    🤖 Agent
+                  </span>
+                </div>
+                {agentTasks.length === 0 ? (
+                  <p className="text-[9px] text-white/20 font-mono px-3 pb-2">None</p>
+                ) : (
+                  agentTasks.map(issue => (
+                    <TaskRow key={issue.id} id={issue.id} title={issue.title} status={issue.status}
+                      assignee={agentShortName(issue.assigneeAgentId)} />
+                  ))
+                )}
+              </div>
             </div>
           </div>
+
+          {/* SECTION: Bottlenecks */}
+          <BottlenecksPanel issues={bottleneckTasks} agentMap={agentMap} companyId={selectedCompanyId ?? ""} />
+
 
           {/* SECTION: Activity feed */}
           <div className="flex-1 rounded-2xl overflow-hidden flex flex-col min-h-[200px]"
