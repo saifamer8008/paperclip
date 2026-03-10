@@ -421,20 +421,19 @@ function AgentSidePanel({ agent, companyId, onClose }: AgentSidePanelProps) {
   const { pushToast } = useToast();
 
   const { mutate: invoke, isPending: isInvoking } = useMutation({
-    mutationFn: (command: "heartbeat" | "ping") =>
-      agentsApi.invoke(agent.id, command),
-    onSuccess: (_, command) => {
+    mutationFn: () => agentsApi.invoke(agent.id, companyId),
+    onSuccess: () => {
       pushToast({
-        title: "Command Sent",
-        body: `Agent ${agent.name} was sent the '${command}' command.`,
+        title: "Heartbeat Triggered",
+        body: `${agent.name} is now running.`,
         tone: "success",
       });
       onClose();
     },
-    onError: (err: any, command) => {
+    onError: (err: unknown) => {
       pushToast({
         title: "Command Failed",
-        body: `Failed to send '${command}' to ${agent.name}: ${err.message}`,
+        body: `Failed to trigger ${agent.name}: ${err instanceof Error ? err.message : "Unknown error"}`,
         tone: "error",
       });
     },
@@ -486,22 +485,15 @@ function AgentSidePanel({ agent, companyId, onClose }: AgentSidePanelProps) {
 
           <div className="border-t border-border mt-2 pt-4 flex flex-col gap-2">
             <HudButton
-              onClick={() => invoke("ping")}
-              disabled={isInvoking}
-              className="w-full justify-center"
-            >
-              ◈ PING
-            </HudButton>
-            <HudButton
               onClick={() => navigate(`/agents/${agent.id}`)}
               className="w-full justify-center"
             >
               ▶ DETAIL
             </HudButton>
             <HudButton
-              onClick={() => invoke("heartbeat")}
+              onClick={() => invoke()}
               disabled={isInvoking}
-              className="w-full justify-center bg-destructive-dark text-destructive-foreground"
+              className="w-full justify-center"
             >
               ◈ RUN NOW
             </HudButton>

@@ -24,6 +24,7 @@ interface IssuesListProps {
   liveIssueIds?: Set<string>;
   projectId?: string;
   viewStateKey?: string;
+  /** Passed from parent for filtering; filtering is applied upstream before this component. */
   initialAssignees?: string[];
   initialSearch?: string;
   onSearchChange?: (search: string) => void;
