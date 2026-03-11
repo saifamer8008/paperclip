@@ -68,11 +68,24 @@ function useLiveClock() {
 // ─────────────────────────────────────────────────────────────────────────────
 //  Top bar
 // ─────────────────────────────────────────────────────────────────────────────
-function TopBar({ totalAgents, runningAgents }: { totalAgents: number; runningAgents: number }) {
+const VIEWER_KEY = "dashboard_viewer_id";
+
+function TopBar({
+  totalAgents, runningAgents,
+  teamAgents, viewerId, onViewerChange,
+}: {
+  totalAgents: number; runningAgents: number;
+  teamAgents: Agent[]; viewerId: string | null;
+  onViewerChange: (id: string | null) => void;
+}) {
   const now = useLiveClock();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const viewer = teamAgents.find(a => a.id === viewerId) ?? null;
+  const viewerColor = viewer ? (STATUS_COLOR[viewer.status] ?? "#6b7280") : GOLD;
+
   return (
     <div
-      className="flex items-center justify-between px-5 py-3 rounded-2xl shrink-0"
+      className="flex items-center justify-between px-5 py-3 rounded-2xl shrink-0 relative"
       style={{
         background: "linear-gradient(90deg, rgba(10,9,15,0.95) 0%, rgba(18,14,8,0.95) 100%)",
         border: `1px solid ${GOLD}30`,
@@ -88,8 +101,59 @@ function TopBar({ totalAgents, runningAgents }: { totalAgents: number; runningAg
         </svg>
         <div>
           <div className="text-[13px] font-black tracking-[0.22em] uppercase" style={{ color: GOLD }}>MISSION CONTROL</div>
-          <div className="text-[9px] tracking-[0.14em] uppercase" style={{ color: GOLD + "60" }}>Laissez-Faire Group · Boss Interface</div>
+          <div className="text-[9px] tracking-[0.14em] uppercase" style={{ color: GOLD + "60" }}>Laissez-Faire Group · Command Dashboard</div>
         </div>
+      </div>
+
+      {/* ── Persona picker ── */}
+      <div className="relative">
+        <button
+          onClick={() => setPickerOpen(p => !p)}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all hover:scale-[1.02]"
+          style={{
+            background: viewer ? `${viewerColor}12` : "rgba(255,255,255,0.04)",
+            border: `1px solid ${viewer ? viewerColor + "30" : "rgba(255,255,255,0.1)"}`,
+          }}>
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: viewerColor, boxShadow: viewer ? `0 0 5px ${viewerColor}` : undefined }} />
+          <span className="text-[10px] font-black tracking-widest uppercase"
+            style={{ color: viewer ? viewerColor : "rgba(255,255,255,0.4)", fontFamily: "monospace" }}>
+            {viewer ? viewer.name.replace(/\s*Agent\s*$/i, "") : "Who are you?"}
+          </span>
+          <span className="text-[9px]" style={{ color: "rgba(255,255,255,0.3)" }}>▾</span>
+        </button>
+
+        {pickerOpen && (
+          <div className="absolute top-full right-0 mt-1.5 rounded-2xl overflow-hidden z-50 min-w-[180px]"
+            style={{ background: "rgba(8,7,14,0.98)", border: `1px solid ${GOLD}25`, boxShadow: `0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)` }}>
+            {/* Saif / Razor option at top */}
+            <button
+              onClick={() => { onViewerChange(null); setPickerOpen(false); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 transition-colors hover:bg-white/[0.04]"
+              style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span className="text-[10px] font-black tracking-widest" style={{ color: !viewer ? GOLD : "rgba(255,255,255,0.75)", fontFamily: "monospace" }}>
+                Saif Amer
+              </span>
+              {!viewer && <span className="ml-auto text-[8px]" style={{ color: GOLD }}>✓</span>}
+            </button>
+            {teamAgents.map(a => {
+              const c = STATUS_COLOR[a.status] ?? "#6b7280";
+              const isActive = viewer?.id === a.id;
+              return (
+                <button key={a.id}
+                  onClick={() => { onViewerChange(a.id); setPickerOpen(false); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 transition-colors hover:bg-white/[0.04]">
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: c }} />
+                  <span className="text-[10px] font-bold truncate"
+                    style={{ color: isActive ? c : "rgba(255,255,255,0.65)", fontFamily: "monospace" }}>
+                    {a.name.replace(/\s*Agent\s*$/i, "")}
+                  </span>
+                  {isActive && <span className="ml-auto text-[8px]" style={{ color: c }}>✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="hidden md:flex items-center gap-8">
@@ -270,30 +334,62 @@ function findAgent(agents: Agent[], nameFrag: string): Agent | undefined {
 
 const CARD_W = 170; // fixed card width in px
 
-function TeamGrid({ agents, onPing }: { agents: Agent[]; onPing: (a: Agent) => void }) {
+function TeamGrid({ agents, onPing, viewerAgent }: {
+  agents: Agent[];
+  onPing: (a: Agent) => void;
+  viewerAgent: Agent | null;
+}) {
   const francis  = findAgent(agents, "francis");
   const austin   = findAgent(agents, "austin");
   const egide    = findAgent(agents, "egide");
   const action   = findAgent(agents, "action");
-  const row2Set  = new Set([francis, austin, egide, action].filter(Boolean).map(a => a!.id));
-  const row3     = agents.filter(a => !row2Set.has(a.id));
+  const row2Fixed = new Set([francis, austin, egide, action].filter(Boolean).map(a => a!.id));
+  const viewerId  = viewerAgent?.id;
+
+  // Row 3: everyone not in row 2 fixed set, and not the viewer (they're in row 1)
+  const row3 = agents.filter(a => !row2Fixed.has(a.id) && a.id !== viewerId);
 
   const W = { width: CARD_W, minWidth: CARD_W, maxWidth: CARD_W };
-
   const Card = ({ agent }: { agent: Agent }) => (
     <div style={W}><AgentCard agent={agent} onPing={onPing} /></div>
   );
 
+  // Row 1 left: viewer's own card (with "YOU" badge) or RazorCard if no viewer selected
+  const Row1Left = () => (
+    <div style={W}>
+      {viewerAgent ? (
+        <EliteCard
+          name={viewerAgent.name.replace(/\s*Agent\s*$/i, "")}
+          title={viewerAgent.title ?? undefined}
+          badge="YOU"
+          role={viewerAgent.role ?? undefined}
+          statusColor={STATUS_COLOR[viewerAgent.status] ?? "#6b7280"}
+          statusLabel={STATUS_LABEL[viewerAgent.status] ?? viewerAgent.status.toUpperCase()}
+          lastSeen={viewerAgent.lastHeartbeatAt ? timeAgo(viewerAgent.lastHeartbeatAt) : "Never"}
+          isLive={viewerAgent.status === "running"}
+          isHuman={true}
+        />
+      ) : (
+        <RazorCard />
+      )}
+    </div>
+  );
+
+  // Row 1 right: Francis (unless Francis is the viewer)
+  const row1Right = (francis && francis.id !== viewerId) ? francis : null;
+
   return (
     <div className="flex flex-col gap-2.5 items-center">
-      {/* Row 1: Saif + Francis */}
+      {/* Row 1: Viewer + Francis */}
       <div className="flex gap-2.5 justify-center">
-        <div style={W}><RazorCard /></div>
-        {francis && <Card agent={francis} />}
+        <Row1Left />
+        {row1Right && <Card agent={row1Right} />}
       </div>
-      {/* Row 2: Austin, Egide, Action */}
+      {/* Row 2: Austin, Egide, Action (skip if they are the viewer) */}
       <div className="flex gap-2.5 justify-center">
-        {[austin, egide, action].filter(Boolean).map(a => <Card key={a!.id} agent={a!} />)}
+        {[austin, egide, action]
+          .filter((a): a is Agent => !!a && a.id !== viewerId)
+          .map(a => <Card key={a.id} agent={a} />)}
       </div>
       {/* Row 3: everyone else */}
       {row3.length > 0 && (
@@ -837,6 +933,18 @@ export function Dashboard() {
   const { setBreadcrumbs }               = useBreadcrumbs();
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
 
+  // Viewer identity — persisted across sessions
+  const [viewerId, setViewerIdState] = useState<string | null>(() => {
+    try { return localStorage.getItem(VIEWER_KEY) ?? null; } catch { return null; }
+  });
+  const setViewerId = (id: string | null) => {
+    setViewerIdState(id);
+    try {
+      if (id) localStorage.setItem(VIEWER_KEY, id);
+      else localStorage.removeItem(VIEWER_KEY);
+    } catch { /* ignore */ }
+  };
+
   useEffect(() => { setBreadcrumbs([{ label: "Dashboard" }]); }, [setBreadcrumbs]);
 
   // ── Queries
@@ -935,7 +1043,10 @@ export function Dashboard() {
       style={{ fontFamily: "'Space Mono','Courier New',monospace" }}>
 
       {/* Top bar */}
-      <TopBar totalAgents={totalAgents} runningAgents={runningAgents} />
+      <TopBar
+        totalAgents={totalAgents} runningAgents={runningAgents}
+        teamAgents={teamAgents} viewerId={viewerId} onViewerChange={setViewerId}
+      />
 
       {/* No agents nudge */}
       {hasNoAgents && (
@@ -1038,7 +1149,7 @@ export function Dashboard() {
             {teamAgents.length === 0 ? (
               <p className="text-[10px] text-white/25 font-mono py-4 text-center">No team agents</p>
             ) : (
-              <TeamGrid agents={teamAgents} onPing={setSelectedAgent} />
+              <TeamGrid agents={teamAgents} onPing={setSelectedAgent} viewerAgent={teamAgents.find(a => a.id === viewerId) ?? null} />
             )}
           </div>
 
