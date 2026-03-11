@@ -15,7 +15,7 @@ import { ActivityRow } from "../components/ActivityRow";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { timeAgo } from "../lib/timeAgo";
 import { Link, useNavigate } from "@/lib/router";
-import { Bot, Wifi, History, Send, Info, CircleDotDashed, Zap, CheckCircle2 } from "lucide-react";
+import { Bot, Wifi, History, Send, Info, CircleDotDashed, Zap, CheckCircle2, MessageSquare } from "lucide-react";
 import type { Agent, ActivityEvent, HeartbeatRun, Issue } from "@paperclipai/shared";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -363,16 +363,21 @@ function TaskRow({ title, status, assignee, id }: { title: string; status: strin
 // ─────────────────────────────────────────────────────────────────────────────
 //  Command Panel (right rail) — ping / message / example
 // ─────────────────────────────────────────────────────────────────────────────
-type CmdTab = "compose" | "example";
+type CmdTab = "compose" | "example" | "models";
 
 const EXAMPLE_THREAD = [
-  { from: "Razor", text: "Austin — Pose contract status. Where are we.", ts: "9:01 AM", sent: true },
-  { from: "Austin", text: "Counter-party sent edits last night. Reviewing now. Should have redlines back to them by noon.", ts: "9:03 AM", sent: false },
-  { from: "Razor", text: "Good. Egide — confirm the Ghana VASP filing is still tracking for Thursday.", ts: "9:04 AM", sent: true },
-  { from: "Egide", text: "Confirmed. Docs are staged. Waiting on one KYC document from the partner side, following up now.", ts: "9:07 AM", sent: false },
-  { from: "Razor", text: "Ping me the second that lands. Remind me Thursday 8am regardless.", ts: "9:08 AM", sent: true },
-  { from: "System", text: "⏰ Reminder set: Ghana VASP filing check — Thursday 8:00 AM", ts: "9:08 AM", sent: false },
-  { from: "Austin", text: "Also flagging — Syntax Capital LP agreement has a clause that needs Razor's eyes before we sign. Dropping it in issues.", ts: "9:15 AM", sent: false },
+  {
+    kind: "intro",
+    text: "This is the Command Rail. Select any agent → type a message or reminder → hit Send. The agent wakes up with your instruction as context. Their response or task completion appears below.",
+  },
+  { kind: "sent",    from: "You",    text: "Austin — where are we on the Pose contract redlines?",              ts: "9:01 AM" },
+  { kind: "recv",    from: "Austin", text: "Counter-party sent edits last night. Reviewing now. Redlines back by noon.", ts: "9:03 AM" },
+  { kind: "sent",    from: "You",    text: "Ping me the moment you're done. Also remind at 4pm if nothing yet.",  ts: "9:04 AM" },
+  { kind: "system",  from: "System", text: "⏰ Reminder queued: Pose contract follow-up — 4:00 PM",              ts: "9:04 AM" },
+  { kind: "recv",    from: "Austin", text: "Redlines sent. Flagging Syntax Capital LP clause — needs your eyes before signing. Created issue LFG-112.", ts: "11:58 AM" },
+  { kind: "done",    from: "System", text: "✅ Task complete: Pose contract redlines — Austin",                  ts: "11:59 AM" },
+  { kind: "sent",    from: "You",    text: "Egide — Ghana VASP filing still on track for Thursday?",             ts: "2:10 PM" },
+  { kind: "recv",    from: "Egide",  text: "Confirmed. Docs staged. Waiting on one KYC doc from partner — following up now.", ts: "2:14 PM" },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -493,6 +498,87 @@ function BottlenecksPanel({ issues, agentMap, companyId }: {
   );
 }
 
+type CmdMessage = { from: string; text: string; ts: string; kind: "sent" | "recv" | "system" | "done" | "ping" | "remind" };
+
+const MODEL_OPTIONS = [
+  { label: "Gemini 3.1 Pro",       value: "google/gemini-3.1-pro-preview-customtools" },
+  { label: "Gemini 3.1 Flash",     value: "google/gemini-3.1-flash-preview" },
+  { label: "Sonnet 4.6",           value: "openrouter/anthropic/claude-sonnet-4.6" },
+  { label: "GPT-5.4",              value: "openrouter/openai/gpt-5.4" },
+  { label: "Kimi K2.5",            value: "openrouter/moonshotai/kimi-k2.5" },
+  { label: "Opus 4.6",             value: "openrouter/anthropic/claude-opus-4.6" },
+  { label: "Gemini 3 Flash",       value: "google/gemini-3-flash-preview" },
+  { label: "Gemini 3 Pro",         value: "google/gemini-3-pro-preview" },
+];
+
+function ModelSwitcherPanel({ agents, companyId }: { agents: Agent[]; companyId: string }) {
+  const { pushToast } = useToast();
+  const qc = useQueryClient();
+  const [pending, setPending] = useState<string | null>(null);
+
+  const switchModel = async (agent: Agent, model: string) => {
+    setPending(agent.id + model);
+    try {
+      await agentsApi.update(agent.id, { model }, companyId);
+      pushToast({ title: `${agent.name.replace(/\s*Agent\s*$/i, "")} → ${MODEL_OPTIONS.find(m => m.value === model)?.label ?? model}`, tone: "success" });
+      qc.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
+    } catch {
+      pushToast({ title: "Model switch failed", tone: "error" });
+    } finally {
+      setPending(null);
+    }
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5" style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}20 transparent` }}>
+      <div className="text-[9px] font-black tracking-widest text-white/25 font-mono px-1 mb-1">
+        AGENT MODELS — click to switch
+      </div>
+      {agents.map(agent => {
+        const color = STATUS_COLOR[agent.status] ?? "#6b7280";
+        const currentModel = (agent as any).model as string | undefined;
+        return (
+          <div key={agent.id} className="rounded-xl overflow-hidden"
+            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="flex items-center gap-2 px-3 py-2"
+              style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: color }} />
+              <span className="text-[10px] font-black text-white/75 font-mono flex-1 truncate">
+                {agent.name.replace(/\s*Agent\s*$/i, "")}
+              </span>
+              {currentModel && (
+                <span className="text-[8px] text-white/30 font-mono truncate max-w-[90px]">
+                  {MODEL_OPTIONS.find(m => m.value === currentModel)?.label ?? currentModel.split("/").pop()}
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1 p-2">
+              {MODEL_OPTIONS.map(opt => {
+                const isActive = currentModel === opt.value;
+                const isLoading = pending === agent.id + opt.value;
+                return (
+                  <button key={opt.value}
+                    onClick={() => switchModel(agent, opt.value)}
+                    disabled={isActive || !!pending}
+                    className="text-[8px] font-bold px-2 py-0.5 rounded-full transition-all hover:scale-105 disabled:cursor-default"
+                    style={{
+                      background: isActive ? `${color}20` : "rgba(255,255,255,0.04)",
+                      border: `1px solid ${isActive ? color + "40" : "rgba(255,255,255,0.08)"}`,
+                      color: isActive ? color : isLoading ? GOLD : "rgba(255,255,255,0.4)",
+                      fontFamily: "monospace",
+                    }}>
+                    {isLoading ? "…" : opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 function CommandPanel({
   agents,
@@ -507,27 +593,41 @@ function CommandPanel({
 }) {
   const [tab, setTab] = useState<CmdTab>("compose");
   const [msg, setMsg] = useState("");
+  const [msgType, setMsgType] = useState<"message" | "ping" | "remind">("message");
+  const [sentLog, setSentLog] = useState<CmdMessage[]>([]);
   const { pushToast } = useToast();
   const qc = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const wakeup = useMutation({
-    mutationFn: (reason: string) =>
-      agentsApi.wakeup(selectedAgent!.id, { source: "on_demand", triggerDetail: "manual", reason }, companyId),
-    onSuccess: () => {
-      pushToast({ title: `Pinged ${selectedAgent?.name}`, tone: "success" });
+    mutationFn: ({ reason, agentId }: { reason: string; agentId: string }) =>
+      agentsApi.wakeup(agentId, { source: "on_demand", triggerDetail: "manual", reason }, companyId),
+    onSuccess: (_, vars) => {
+      const name = selectedAgent?.name.replace(/\s*Agent\s*$/i, "") ?? "Agent";
+      pushToast({ title: `Sent to ${name}`, tone: "success" });
       qc.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
+      setSentLog(prev => [...prev, {
+        kind: msgType === "ping" ? "ping" : msgType === "remind" ? "remind" : "sent",
+        from: "You",
+        text: vars.reason,
+        ts: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      }]);
       setMsg("");
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
     },
     onError: () => pushToast({ title: "Failed to send", tone: "error" }),
   });
 
   const handleSend = () => {
     if (!msg.trim() || !selectedAgent) return;
-    wakeup.mutate(msg.trim());
+    const prefix = msgType === "ping" ? "🔔 PING: " : msgType === "remind" ? "⏰ REMIND: " : "";
+    wakeup.mutate({ reason: prefix + msg.trim(), agentId: selectedAgent.id });
   };
 
   const teamAgents = agents.filter(isTeamAgent);
+  const agentColor = selectedAgent ? (STATUS_COLOR[selectedAgent.status] ?? "#6b7280") : GOLD;
+
+  const TABS: [CmdTab, string][] = [["compose", "Message"], ["models", "Models"], ["example", "How it works"]];
 
   return (
     <div className="flex flex-col rounded-2xl overflow-hidden h-full"
@@ -535,20 +635,27 @@ function CommandPanel({
 
       {/* Header */}
       <div className="px-4 py-3 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-        <div className="flex items-center gap-2 mb-3">
-          <Zap className="h-4 w-4" style={{ color: GOLD }} />
-          <span className="text-[13px] font-black tracking-widest uppercase" style={{ color: GOLD, fontFamily: "monospace" }}>
-            Command
-          </span>
+        <div className="flex items-center justify-between mb-2.5">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="h-4 w-4" style={{ color: GOLD }} />
+            <span className="text-[12px] font-black tracking-widest uppercase" style={{ color: GOLD, fontFamily: "monospace" }}>
+              {selectedAgent ? selectedAgent.name.replace(/\s*Agent\s*$/i, "") : "Command Rail"}
+            </span>
+          </div>
+          {selectedAgent && (
+            <span className="text-[8px] font-black tracking-widest px-2 py-0.5 rounded-full"
+              style={{ color: agentColor, background: `${agentColor}15`, border: `1px solid ${agentColor}28`, fontFamily: "monospace" }}>
+              {STATUS_LABEL[selectedAgent.status] ?? selectedAgent.status.toUpperCase()}
+            </span>
+          )}
         </div>
-        {/* Tab row */}
         <div className="flex gap-1">
-          {([["compose", "Compose"], ["example", "How it works"]] as [CmdTab, string][]).map(([t, lbl]) => (
+          {TABS.map(([t, lbl]) => (
             <button key={t} onClick={() => setTab(t)}
-              className="text-[10px] font-bold px-3 py-1 rounded-full transition-all"
+              className="text-[9px] font-bold px-3 py-1 rounded-full transition-all"
               style={{
                 background: tab === t ? `${GOLD}20` : "transparent",
-                color: tab === t ? GOLD : "rgba(255,255,255,0.35)",
+                color: tab === t ? GOLD : "rgba(255,255,255,0.3)",
                 border: `1px solid ${tab === t ? GOLD + "40" : "transparent"}`,
                 fontFamily: "monospace",
               }}>
@@ -558,62 +665,70 @@ function CommandPanel({
         </div>
       </div>
 
-      {tab === "example" ? (
-        /* ── Example thread ── */
+      {tab === "models" ? (
+        <ModelSwitcherPanel agents={teamAgents} companyId={companyId} />
+      ) : tab === "example" ? (
+        /* ── How it works ── */
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2" style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}30 transparent` }}>
-          <div className="mb-3 px-2 py-2 rounded-xl text-[10px] leading-relaxed"
-            style={{ background: `${GOLD}0a`, border: `1px solid ${GOLD}20`, color: "rgba(255,255,255,0.5)", fontFamily: "monospace" }}>
-            <Info className="h-3 w-3 inline mr-1.5" style={{ color: GOLD }} />
-            Select an agent, type a message, hit Send. It wakes the agent with your instruction as context. Responses appear in their heartbeat feed.
-          </div>
-          {EXAMPLE_THREAD.map((m, i) => (
-            <div key={i} className={`flex flex-col gap-0.5 ${m.sent ? "items-end" : "items-start"}`}>
-              <span className="text-[9px] font-bold px-1" style={{ color: m.sent ? GOLD + "99" : "rgba(255,255,255,0.3)", fontFamily: "monospace" }}>
-                {m.from} · {m.ts}
-              </span>
-              <div className="max-w-[85%] px-3 py-2 rounded-2xl text-[11px] leading-relaxed"
-                style={{
-                  background: m.sent
-                    ? `linear-gradient(135deg, ${GOLD}28 0%, ${GOLD}14 100%)`
-                    : m.from === "System"
-                      ? "rgba(52,211,153,0.08)"
-                      : "rgba(255,255,255,0.05)",
-                  border: m.sent
-                    ? `1px solid ${GOLD}35`
-                    : m.from === "System"
-                      ? "1px solid rgba(52,211,153,0.2)"
-                      : "1px solid rgba(255,255,255,0.08)",
-                  color: m.sent ? "rgba(255,255,255,0.9)" : m.from === "System" ? "#34d399" : "rgba(255,255,255,0.75)",
-                  fontFamily: m.from === "System" ? "monospace" : undefined,
-                  fontSize: m.from === "System" ? "10px" : undefined,
-                }}>
-                {m.text}
+          {EXAMPLE_THREAD.map((m, i) => {
+            if (m.kind === "intro") return (
+              <div key={i} className="px-3 py-2.5 rounded-xl text-[10px] leading-relaxed mb-3"
+                style={{ background: `${GOLD}0a`, border: `1px solid ${GOLD}1a`, color: "rgba(255,255,255,0.45)", fontFamily: "monospace" }}>
+                💡 {m.text}
               </div>
-            </div>
-          ))}
+            );
+            const isSent = m.kind === "sent";
+            const isSys  = m.kind === "system" || m.kind === "done";
+            return (
+              <div key={i} className={`flex flex-col gap-0.5 ${isSent ? "items-end" : isSys ? "items-center" : "items-start"}`}>
+                {!isSys && (
+                  <span className="text-[8px] font-bold px-1"
+                    style={{ color: isSent ? GOLD + "88" : "rgba(255,255,255,0.28)", fontFamily: "monospace" }}>
+                    {m.from} · {m.ts}
+                  </span>
+                )}
+                <div className="max-w-[88%] px-3 py-2 rounded-2xl text-[10px] leading-relaxed"
+                  style={{
+                    background: isSent ? `linear-gradient(135deg, ${GOLD}22, ${GOLD}12)` :
+                      m.kind === "done" ? "rgba(52,211,153,0.08)" :
+                      isSys ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.05)",
+                    border: isSent ? `1px solid ${GOLD}30` :
+                      m.kind === "done" ? "1px solid rgba(52,211,153,0.2)" :
+                      isSys ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(255,255,255,0.08)",
+                    color: isSent ? "rgba(255,255,255,0.88)" :
+                      m.kind === "done" ? "#34d399" :
+                      isSys ? "#a78bfa" : "rgba(255,255,255,0.7)",
+                    fontFamily: isSys ? "monospace" : undefined,
+                    fontSize: isSys ? "9px" : undefined,
+                  }}>
+                  {m.text}
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
-        /* ── Compose tab ── */
+        /* ── Compose ── */
         <div className="flex flex-col flex-1 min-h-0">
-          {/* Agent selector */}
-          <div className="px-3 pt-3 shrink-0">
-            <div className="text-[9px] font-black tracking-widest uppercase mb-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "monospace" }}>
-              Send to
+          {/* Agent chips */}
+          <div className="px-3 pt-2.5 pb-2 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+            <div className="text-[8px] font-black tracking-widest uppercase mb-1.5" style={{ color: "rgba(255,255,255,0.22)", fontFamily: "monospace" }}>
+              Select agent
             </div>
-            <div className="flex flex-wrap gap-1.5 mb-3">
+            <div className="flex flex-wrap gap-1">
               {teamAgents.map(a => {
                 const active = selectedAgent?.id === a.id;
-                const color = STATUS_COLOR[a.status] ?? "#6b7280";
+                const c = STATUS_COLOR[a.status] ?? "#6b7280";
                 return (
                   <button key={a.id} onClick={() => onSelectAgent(active ? null : a)}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all"
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold transition-all"
                     style={{
-                      background: active ? `${color}22` : "rgba(255,255,255,0.04)",
-                      border: `1px solid ${active ? color + "50" : "rgba(255,255,255,0.1)"}`,
-                      color: active ? color : "rgba(255,255,255,0.45)",
+                      background: active ? `${c}20` : "rgba(255,255,255,0.03)",
+                      border: `1px solid ${active ? c + "45" : "rgba(255,255,255,0.08)"}`,
+                      color: active ? c : "rgba(255,255,255,0.38)",
                       fontFamily: "monospace",
                     }}>
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: c }} />
                     {a.name.replace(/\s*Agent\s*$/i, "")}
                   </button>
                 );
@@ -621,39 +736,77 @@ function CommandPanel({
             </div>
           </div>
 
-          {/* Recent messages / activity for selected agent */}
-          <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-1.5" style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}30 transparent` }}>
-            {!selectedAgent ? (
+          {/* Thread */}
+          <div className="flex-1 overflow-y-auto px-3 py-2.5 space-y-2" style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}20 transparent` }}>
+            {sentLog.length === 0 && !selectedAgent && (
               <div className="flex flex-col items-center justify-center h-full gap-2 py-8">
-                <Bot className="h-8 w-8" style={{ color: GOLD + "40" }} />
-                <p className="text-[11px] text-white/20 font-mono text-center">Select an agent to<br />send a message or ping</p>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <div className="text-[9px] font-bold text-white/25 font-mono px-1 pt-1">Recent from {selectedAgent.name.replace(/\s*Agent\s*$/i, "")}</div>
-                <div className="px-3 py-2.5 rounded-xl text-[11px] leading-relaxed"
-                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.55)", fontFamily: "monospace" }}>
-                  Type a message below to wake this agent with your instructions as context. They'll respond in their next heartbeat run.
-                </div>
+                <MessageSquare className="h-7 w-7" style={{ color: GOLD + "35" }} />
+                <p className="text-[10px] text-white/18 font-mono text-center leading-relaxed">
+                  Pick an agent above.<br />Message, ping, or set a reminder.
+                </p>
               </div>
             )}
+            {selectedAgent && sentLog.length === 0 && (
+              <div className="px-3 py-2.5 rounded-xl text-[10px] leading-relaxed"
+                style={{ background: `${agentColor}08`, border: `1px solid ${agentColor}18`, color: "rgba(255,255,255,0.4)", fontFamily: "monospace" }}>
+                Talking to <span style={{ color: agentColor }}>{selectedAgent.name.replace(/\s*Agent\s*$/i, "")}</span>. Your message wakes them with your instruction as context. Responses appear in their next heartbeat.
+              </div>
+            )}
+            {sentLog.map((m, i) => (
+              <div key={i} className="flex flex-col gap-0.5 items-end">
+                <span className="text-[8px] font-bold px-1" style={{ color: GOLD + "77", fontFamily: "monospace" }}>
+                  {m.kind === "ping" ? "🔔 Ping" : m.kind === "remind" ? "⏰ Remind" : "Message"} · {m.ts}
+                </span>
+                <div className="max-w-[88%] px-3 py-2 rounded-2xl text-[10px] leading-relaxed"
+                  style={{
+                    background: `linear-gradient(135deg, ${GOLD}20, ${GOLD}10)`,
+                    border: `1px solid ${GOLD}28`,
+                    color: "rgba(255,255,255,0.85)",
+                  }}>
+                  {m.text}
+                </div>
+              </div>
+            ))}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input bar */}
+          {/* Message type toggle */}
+          <div className="px-3 pt-2 shrink-0">
+            <div className="flex gap-1 mb-2">
+              {(["message", "ping", "remind"] as const).map(t => (
+                <button key={t} onClick={() => setMsgType(t)}
+                  className="text-[8px] font-black tracking-widest px-2.5 py-1 rounded-full transition-all"
+                  style={{
+                    background: msgType === t ? `${GOLD}20` : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${msgType === t ? GOLD + "40" : "rgba(255,255,255,0.08)"}`,
+                    color: msgType === t ? GOLD : "rgba(255,255,255,0.3)",
+                    fontFamily: "monospace",
+                  }}>
+                  {t === "message" ? "💬 MSG" : t === "ping" ? "🔔 PING" : "⏰ REMIND"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Input */}
           <div className="px-3 pb-3 shrink-0">
             <div className="flex gap-2 items-end">
               <textarea
                 value={msg}
                 onChange={e => setMsg(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                placeholder={selectedAgent ? `Message ${selectedAgent.name.replace(/\s*Agent\s*$/i, "")}…` : "Select an agent first…"}
+                placeholder={
+                  !selectedAgent ? "Select an agent first…" :
+                  msgType === "ping" ? `Ping ${selectedAgent.name.replace(/\s*Agent\s*$/i, "")} with a note…` :
+                  msgType === "remind" ? "Set a reminder (e.g. follow up on X by 4pm)…" :
+                  `Message ${selectedAgent.name.replace(/\s*Agent\s*$/i, "")}…`
+                }
                 disabled={!selectedAgent || wakeup.isPending}
                 rows={2}
                 className="flex-1 resize-none rounded-xl px-3 py-2 text-[11px] outline-none transition-all disabled:opacity-40"
                 style={{
-                  background: "rgba(255,255,255,0.05)",
-                  border: `1px solid ${selectedAgent ? GOLD + "35" : "rgba(255,255,255,0.08)"}`,
+                  background: "rgba(255,255,255,0.04)",
+                  border: `1px solid ${selectedAgent ? GOLD + "30" : "rgba(255,255,255,0.07)"}`,
                   color: "rgba(255,255,255,0.85)",
                   fontFamily: "monospace",
                   scrollbarWidth: "none",
@@ -662,8 +815,8 @@ function CommandPanel({
               <button
                 onClick={handleSend}
                 disabled={!selectedAgent || !msg.trim() || wakeup.isPending}
-                className="flex items-center justify-center w-9 h-9 rounded-xl transition-all disabled:opacity-30 hover:scale-105"
-                style={{ background: `${GOLD}22`, border: `1px solid ${GOLD}44`, color: GOLD }}
+                className="flex items-center justify-center w-9 h-9 rounded-xl transition-all disabled:opacity-30 hover:scale-105 active:scale-95"
+                style={{ background: `${GOLD}20`, border: `1px solid ${GOLD}40`, color: GOLD }}
               >
                 <Send className="h-3.5 w-3.5" />
               </button>
@@ -806,24 +959,6 @@ export function Dashboard() {
         {/* ── LEFT COLUMN ── */}
         <div className="flex-1 min-w-0 flex flex-col gap-3 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}22 transparent` }}>
 
-          {/* SECTION: Team agents */}
-          <div className="shrink-0">
-            <div className="flex items-center justify-between mb-2.5">
-              <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: GOLD, fontFamily: "monospace" }}>
-                Team
-              </span>
-              <Link to="/agents" className="text-[9px] font-bold tracking-widest uppercase hover:opacity-70 transition-opacity"
-                style={{ color: GOLD + "99" }}>
-                All Agents →
-              </Link>
-            </div>
-            {teamAgents.length === 0 ? (
-              <p className="text-[10px] text-white/25 font-mono py-4 text-center">No team agents</p>
-            ) : (
-              <TeamGrid agents={teamAgents} onPing={setSelectedAgent} />
-            )}
-          </div>
-
           {/* SECTION: Open Tasks — split human / agent */}
           <div className="shrink-0 rounded-2xl overflow-hidden"
             style={{ background: "rgba(0,0,0,0.4)", border: `1px solid rgba(255,255,255,0.06)` }}>
@@ -889,6 +1024,23 @@ export function Dashboard() {
           {/* SECTION: Bottlenecks */}
           <BottlenecksPanel issues={bottleneckTasks} agentMap={agentMap} companyId={selectedCompanyId ?? ""} />
 
+          {/* SECTION: Team agents */}
+          <div className="shrink-0">
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: GOLD, fontFamily: "monospace" }}>
+                Team
+              </span>
+              <Link to="/agents" className="text-[9px] font-bold tracking-widest uppercase hover:opacity-70 transition-opacity"
+                style={{ color: GOLD + "99" }}>
+                All Agents →
+              </Link>
+            </div>
+            {teamAgents.length === 0 ? (
+              <p className="text-[10px] text-white/25 font-mono py-4 text-center">No team agents</p>
+            ) : (
+              <TeamGrid agents={teamAgents} onPing={setSelectedAgent} />
+            )}
+          </div>
 
           {/* SECTION: Activity feed */}
           <div className="flex-1 rounded-2xl overflow-hidden flex flex-col min-h-[200px]"
