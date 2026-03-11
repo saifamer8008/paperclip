@@ -485,6 +485,78 @@ function NotionTaskRow({ task }: { task: NotionTask }) {
   );
 }
 
+// Rich card used in the Notion Tasks panel — shows name, lead, due, blocker
+function NotionTaskCard({ task }: { task: NotionTask }) {
+  const c = PRIORITY_COLOR[task.priority] ?? "#64748b";
+  const lead = task.assignedTo?.[0] ?? task.assignee ?? null;
+  const hasBlocker = task.blockers && task.blockers.trim().length > 0;
+  const due = task.dueDate ? new Date(task.dueDate) : null;
+  const now = Date.now();
+  const isOverdue  = due && due.getTime() < now;
+  const isDueSoon  = due && !isOverdue && due.getTime() - now < 48 * 60 * 60 * 1000;
+  const dueColor   = isOverdue ? "#f87171" : isDueSoon ? "#fbbf24" : "#94a3b8";
+  const dueLabel   = due
+    ? isOverdue
+      ? "OVERDUE"
+      : due.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    : null;
+
+  return (
+    <a href={task.url} target="_blank" rel="noreferrer" className="no-underline block group">
+      <div className="mx-3 mb-2 rounded-xl p-3 transition-all group-hover:bg-white/[0.04]"
+        style={{
+          background: hasBlocker ? "rgba(248,113,113,0.04)" : "rgba(255,255,255,0.025)",
+          border: hasBlocker ? "1px solid rgba(248,113,113,0.15)" : `1px solid rgba(255,255,255,0.06)`,
+        }}>
+        {/* Title row */}
+        <div className="flex items-start gap-2 mb-1.5">
+          <span className="w-1.5 h-1.5 rounded-full shrink-0 mt-1" style={{ background: c }} />
+          <span className="flex-1 text-[12px] font-bold text-white/85 leading-snug group-hover:text-white transition-colors">
+            {task.name}
+          </span>
+          {task.priority && (
+            <span className="text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded-full shrink-0 mt-0.5"
+              style={{ color: c, background: `${c}18`, border: `1px solid ${c}30`, fontFamily: "monospace" }}>
+              {task.priority.toUpperCase()}
+            </span>
+          )}
+        </div>
+        {/* Meta row */}
+        <div className="flex items-center gap-3 pl-3.5 flex-wrap">
+          {lead && (
+            <span className="flex items-center gap-1 text-[10px] font-bold font-mono" style={{ color: GOLD + "cc" }}>
+              <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="2.5" r="1.8" fill="currentColor" opacity="0.7"/><path d="M1 7c0-1.657 1.343-3 3-3s3 1.343 3 3" fill="currentColor" opacity="0.5"/></svg>
+              {lead}
+            </span>
+          )}
+          {dueLabel && (
+            <span className="flex items-center gap-1 text-[10px] font-bold font-mono" style={{ color: dueColor }}>
+              <svg width="8" height="8" viewBox="0 0 8 8"><rect x="0.5" y="1" width="7" height="6.5" rx="1" fill="none" stroke="currentColor" strokeWidth="1"/><path d="M0.5 3h7" stroke="currentColor" strokeWidth="0.8"/><rect x="2" y="0.5" width="1" height="1.5" rx="0.5" fill="currentColor"/><rect x="5" y="0.5" width="1" height="1.5" rx="0.5" fill="currentColor"/></svg>
+              {dueLabel}
+            </span>
+          )}
+          {task.status && (
+            <span className="text-[9px] font-mono text-white/30">{task.status}</span>
+          )}
+        </div>
+        {/* Blocker row */}
+        {hasBlocker && (
+          <div className="mt-2 pl-3.5 flex items-start gap-1.5">
+            <svg width="9" height="9" viewBox="0 0 9 9" className="shrink-0 mt-0.5">
+              <path d="M4.5 1L8.5 8H0.5L4.5 1Z" fill="none" stroke="#f87171" strokeWidth="1.2"/>
+              <path d="M4.5 4.5v1.5" stroke="#f87171" strokeWidth="1.2" strokeLinecap="round"/>
+              <circle cx="4.5" cy="7" r="0.5" fill="#f87171"/>
+            </svg>
+            <span className="text-[10px] font-mono leading-snug" style={{ color: "#f87171" }}>
+              {task.blockers}
+            </span>
+          </div>
+        )}
+      </div>
+    </a>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Command Panel (right rail) — ping / message / example
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1286,103 +1358,171 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* ── Body: Left | Right ── */}
+      {/* ── Body: Main | Command Rail ── */}
       <div className="flex gap-3 flex-1 min-h-0">
 
-        {/* ── LEFT COLUMN ── */}
-        <div className="flex-1 min-w-0 flex flex-col gap-3 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}22 transparent` }}>
+        {/* ── MAIN AREA (scrollable) ── */}
+        <div className="flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto pb-4"
+          style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}22 transparent` }}>
 
-          {/* SECTION: Notion */}
-          <NotionPanel />
+          {/* ── ROW 1: Notion Tasks | Open Tasks + Bottlenecks ── */}
+          <div className="grid grid-cols-2 gap-3 shrink-0">
 
-          {/* SECTION: Open Tasks — split human / agent */}
-          <div className="shrink-0 rounded-2xl overflow-hidden"
-            style={{ background: "rgba(0,0,0,0.4)", border: `1px solid rgba(255,255,255,0.06)` }}>
-            <div className="flex items-center justify-between px-4 py-2.5"
-              style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-3.5 w-3.5" style={{ color: GOLD }} />
-                <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: GOLD, fontFamily: "monospace" }}>
-                  Open Tasks
-                </span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold"
-                  style={{ background: GOLD + "18", color: GOLD + "bb", fontFamily: "monospace" }}>
-                  {allOpen.length}
-                </span>
+            {/* ── NOTION TASKS panel (rich cards) ── */}
+            <div className="rounded-2xl overflow-hidden flex flex-col"
+              style={{ background: "rgba(0,0,0,0.45)", border: `1px solid ${GOLD}22` }}>
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-2.5 shrink-0"
+                style={{ borderBottom: `1px solid ${GOLD}18`, background: `linear-gradient(90deg, ${GOLD}08 0%, transparent 60%)` }}>
+                <div className="flex items-center gap-2">
+                  <svg width="12" height="12" viewBox="0 0 12 12" className="shrink-0">
+                    <rect x="0.5" y="0.5" width="11" height="11" rx="2" fill="none" stroke={GOLD} strokeWidth="1.2" strokeOpacity="0.7"/>
+                    <rect x="2.5" y="4" width="7" height="1.2" rx="0.6" fill={GOLD} fillOpacity="0.55"/>
+                    <rect x="2.5" y="6.5" width="5" height="1.2" rx="0.6" fill={GOLD} fillOpacity="0.35"/>
+                  </svg>
+                  <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: GOLD, fontFamily: "monospace" }}>
+                    Notion
+                  </span>
+                  {notionData && (
+                    <span className="text-[8px] px-1.5 py-0.5 rounded-full font-bold font-mono"
+                      style={{ background: GOLD + "18", color: GOLD + "bb" }}>
+                      {notionData.tasks.length} open
+                    </span>
+                  )}
+                </div>
+                {notionData && (
+                  <span className="text-[8px] font-mono text-white/20">
+                    synced {new Date(notionData.fetchedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                )}
               </div>
-              <Link to="/issues" className="text-[9px] font-bold tracking-widest uppercase hover:opacity-70 transition-opacity"
-                style={{ color: GOLD + "99" }}>All →</Link>
+              {/* Task cards */}
+              <div className="flex-1 overflow-y-auto pt-2 pb-1"
+                style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}22 transparent` }}>
+                {!notionData ? (
+                  <div className="flex items-center justify-center py-8">
+                    <span className="text-[9px] font-mono text-white/20 animate-pulse">Loading Notion...</span>
+                  </div>
+                ) : notionData.tasks.length === 0 ? (
+                  <p className="text-[9px] text-white/20 font-mono px-4 py-3">No open tasks</p>
+                ) : (
+                  notionData.tasks.map((t: NotionTask) => <NotionTaskCard key={t.id} task={t} />)
+                )}
+              </div>
+              {/* Footer tabs for Goals/Deals */}
+              {notionData && (
+                <div className="flex items-center gap-3 px-4 py-2 shrink-0"
+                  style={{ borderTop: `1px solid rgba(255,255,255,0.05)` }}>
+                  <a href="https://notion.so" target="_blank" rel="noreferrer"
+                    className="text-[9px] font-mono hover:opacity-80 transition-opacity no-underline"
+                    style={{ color: GOLD + "66" }}>
+                    {notionData.goals.length} goals · {notionData.deals.length} deals →
+                  </a>
+                </div>
+              )}
             </div>
 
-            <div className="grid grid-cols-2 divide-x divide-white/[0.04]">
-              {/* Human tasks */}
-              <div className="py-1">
-                <div className="flex items-center gap-1.5 px-3 py-1.5">
-                  <span className="text-[8px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded-full"
-                    style={{ color: "#a78bfa", background: "rgba(167,139,250,0.1)", border: "1px solid rgba(167,139,250,0.2)", fontFamily: "monospace" }}>
-                    👤 Human
-                  </span>
+            {/* ── RIGHT OF ROW 1: Tasks + Bottlenecks stacked ── */}
+            <div className="flex flex-col gap-3">
+
+              {/* Open Tasks — human / agent split */}
+              <div className="rounded-2xl overflow-hidden"
+                style={{ background: "rgba(0,0,0,0.4)", border: `1px solid rgba(255,255,255,0.07)` }}>
+                <div className="flex items-center justify-between px-4 py-2.5"
+                  style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-3.5 w-3.5" style={{ color: GOLD }} />
+                    <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: GOLD, fontFamily: "monospace" }}>
+                      Open Tasks
+                    </span>
+                    <span className="text-[8px] px-1.5 py-0.5 rounded-full font-bold font-mono"
+                      style={{ background: GOLD + "18", color: GOLD + "bb" }}>
+                      {allOpen.length}
+                    </span>
+                    <span className="text-[8px] font-mono text-white/25 ml-1">24h</span>
+                  </div>
+                  <Link to="/issues" className="text-[9px] font-bold tracking-widest uppercase hover:opacity-70 transition-opacity"
+                    style={{ color: GOLD + "99" }}>All →</Link>
                 </div>
-                {humanTasks.length === 0 && unassignedTasks.length === 0 && (!notionData || notionData.tasks.length === 0) ? (
-                  <p className="text-[9px] text-white/20 font-mono px-3 pb-2">None</p>
-                ) : (
-                  <>
-                    {humanTasks.map(issue => (
-                      <TaskRow key={issue.id} id={issue.id} title={issue.title} status={issue.status} assignee="Razor" />
-                    ))}
-                    {unassignedTasks.map(issue => (
-                      <TaskRow key={issue.id} id={issue.id} title={issue.title} status={issue.status} />
-                    ))}
-                    {(notionData?.tasks ?? []).slice(0, 5).map(t => (
-                      <NotionTaskRow key={t.id} task={t} />
-                    ))}
-                  </>
-                )}
+                <div className="grid grid-cols-2 divide-x divide-white/[0.04]">
+                  {/* Human tasks */}
+                  <div className="py-1">
+                    <div className="px-3 py-1.5">
+                      <span className="text-[8px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded-full"
+                        style={{ color: "#a78bfa", background: "rgba(167,139,250,0.1)", border: "1px solid rgba(167,139,250,0.2)", fontFamily: "monospace" }}>
+                        👤 Human
+                      </span>
+                    </div>
+                    {humanTasks.length === 0 && unassignedTasks.length === 0 ? (
+                      <p className="text-[9px] text-white/20 font-mono px-3 pb-2">None due</p>
+                    ) : (
+                      <>
+                        {humanTasks.map(issue => (
+                          <TaskRow key={issue.id} id={issue.id} title={issue.title} status={issue.status} assignee="Razor" />
+                        ))}
+                        {unassignedTasks.map(issue => (
+                          <TaskRow key={issue.id} id={issue.id} title={issue.title} status={issue.status} />
+                        ))}
+                      </>
+                    )}
+                  </div>
+                  {/* Agent tasks */}
+                  <div className="py-1">
+                    <div className="px-3 py-1.5">
+                      <span className="text-[8px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded-full"
+                        style={{ color: "#34d399", background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", fontFamily: "monospace" }}>
+                        🤖 Agent
+                      </span>
+                    </div>
+                    {agentTasks.length === 0 ? (
+                      <p className="text-[9px] text-white/20 font-mono px-3 pb-2">None active</p>
+                    ) : (
+                      agentTasks.map(issue => (
+                        <TaskRow key={issue.id} id={issue.id} title={issue.title} status={issue.status}
+                          assignee={agentShortName(issue.assigneeAgentId)} />
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {/* Agent tasks */}
-              <div className="py-1">
-                <div className="flex items-center gap-1.5 px-3 py-1.5">
-                  <span className="text-[8px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded-full"
-                    style={{ color: "#34d399", background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", fontFamily: "monospace" }}>
-                    🤖 Agent
-                  </span>
-                </div>
-                {agentTasks.length === 0 ? (
-                  <p className="text-[9px] text-white/20 font-mono px-3 pb-2">None</p>
-                ) : (
-                  agentTasks.map(issue => (
-                    <TaskRow key={issue.id} id={issue.id} title={issue.title} status={issue.status}
-                      assignee={agentShortName(issue.assigneeAgentId)} />
-                  ))
-                )}
-              </div>
+              {/* Bottlenecks */}
+              <BottlenecksPanel issues={bottleneckTasks} agentMap={agentMap} companyId={selectedCompanyId ?? ""} />
+
             </div>
           </div>
 
-          {/* SECTION: Bottlenecks */}
-          <BottlenecksPanel issues={bottleneckTasks} agentMap={agentMap} companyId={selectedCompanyId ?? ""} />
-
-          {/* SECTION: Team agents */}
-          <div className="shrink-0">
-            <div className="flex items-center justify-between mb-2.5">
-              <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: GOLD, fontFamily: "monospace" }}>
-                Team
-              </span>
+          {/* ── ROW 2: Team Grid (full width) ── */}
+          <div className="shrink-0 rounded-2xl overflow-hidden"
+            style={{ background: "rgba(0,0,0,0.3)", border: `1px solid rgba(255,255,255,0.06)` }}>
+            <div className="flex items-center justify-between px-4 py-2.5"
+              style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+              <div className="flex items-center gap-2">
+                <Wifi className="h-3.5 w-3.5" style={{ color: GOLD }} />
+                <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: GOLD, fontFamily: "monospace" }}>
+                  Team
+                </span>
+                <span className="text-[8px] px-1.5 py-0.5 rounded-full font-bold font-mono"
+                  style={{ background: GOLD + "18", color: GOLD + "bb" }}>
+                  {teamAgents.length}
+                </span>
+              </div>
               <Link to="/agents" className="text-[9px] font-bold tracking-widest uppercase hover:opacity-70 transition-opacity"
                 style={{ color: GOLD + "99" }}>
                 All Agents →
               </Link>
             </div>
-            {teamAgents.length === 0 ? (
-              <p className="text-[10px] text-white/25 font-mono py-4 text-center">No team agents</p>
-            ) : (
-              <TeamGrid agents={teamAgents} onPing={setSelectedAgent} viewerAgent={teamAgents.find(a => a.id === viewerId) ?? null} />
-            )}
+            <div className="px-4 py-3">
+              {teamAgents.length === 0 ? (
+                <p className="text-[10px] text-white/25 font-mono py-4 text-center">No team agents</p>
+              ) : (
+                <TeamGrid agents={teamAgents} onPing={setSelectedAgent} viewerAgent={teamAgents.find(a => a.id === viewerId) ?? null} />
+              )}
+            </div>
           </div>
 
-          {/* SECTION: Activity feed */}
-          <div className="flex-1 rounded-2xl overflow-hidden flex flex-col min-h-[200px]"
+          {/* ── ROW 3: Activity Feed ── */}
+          <div className="rounded-2xl overflow-hidden flex flex-col min-h-[160px]"
             style={{ background: "rgba(0,0,0,0.35)", border: `1px solid rgba(255,255,255,0.05)` }}>
             <div className="flex items-center justify-between px-4 py-2.5 shrink-0"
               style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
@@ -1395,12 +1535,12 @@ export function Dashboard() {
                 All →
               </Link>
             </div>
-            <div className="flex-1 overflow-y-auto px-2 py-1" style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}22 transparent` }}>
+            <div className="overflow-y-auto px-2 py-1 max-h-[220px]" style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}22 transparent` }}>
               {activity.length === 0 ? (
                 <p className="text-[10px] text-white/25 font-mono text-center py-6">No activity yet</p>
               ) : (
                 <div className="space-y-0.5">
-                  {activity.map(ev => (
+                  {activity.slice(0, 20).map(ev => (
                     <ActivityRow
                       key={ev.id}
                       event={ev}
