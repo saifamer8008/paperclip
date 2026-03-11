@@ -14,7 +14,7 @@ import { queryKeys } from "../lib/queryKeys";
 import { ActivityRow } from "../components/ActivityRow";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { timeAgo } from "../lib/timeAgo";
-import { Link } from "@/lib/router";
+import { Link, useNavigate } from "@/lib/router";
 import { Bot, Wifi, History, Send, Info, CircleDotDashed, Zap, CheckCircle2 } from "lucide-react";
 import type { Agent, ActivityEvent, HeartbeatRun, Issue } from "@paperclipai/shared";
 
@@ -124,68 +124,138 @@ function TopBar({ totalAgents, runningAgents }: { totalAgents: number; runningAg
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Elite agent card
+//  Elite agent card — role icon glyph, no initials
 // ─────────────────────────────────────────────────────────────────────────────
-// ─── Razor (Saif Amer) special card ───────────────────────────────────────────
-// Shared card color — same for all cards including Razor
-const CARD_COLOR = "#6366f1"; // indigo — used for human cards to blend with agent cards
 
-function RazorCard() {
-  const color = "#94a3b8"; // same slate tone as idle agents
+// Role → SVG path glyph (single path, centered in 40x40 viewBox)
+function RoleGlyph({ role, color }: { role?: string; color: string }) {
+  // Each glyph is a unique geometric shape — no text, no initials
+  const glyphs: Record<string, string> = {
+    ceo:        "M20 4 L28 14 H32 L20 36 L8 14 H12 Z",           // crown
+    cto:        "M8 8 H32 V20 L20 36 L8 20 Z",                    // shield
+    cmo:        "M20 6 C10 6 4 14 4 20 C4 30 12 36 20 36 C28 36 36 30 36 20 C36 14 30 6 20 6 M14 18 L20 24 L26 18", // signal
+    cfo:        "M10 30 L10 18 L16 18 L16 30 M18 30 L18 12 L24 12 L24 30 M26 30 L26 22 L32 22 L32 30", // bars
+    engineer:   "M12 20 L8 16 L12 12 M28 20 L32 16 L28 12 M22 8 L18 32", // code brackets
+    designer:   "M20 8 L32 20 L20 32 L8 20 Z",                    // diamond
+    pm:         "M8 10 H32 V30 H8 Z M8 15 H32 M14 10 V15 M26 10 V15", // calendar
+    qa:         "M20 8 L34 28 H6 Z M20 18 V24 M20 27 V29",        // triangle warning
+    devops:     "M20 6 L34 14 V26 L20 34 L6 26 V14 Z",            // hexagon
+    researcher: "M16 16 m-8 0 a8 8 0 1 0 16 0 a8 8 0 1 0-16 0 M22 22 L34 34", // magnify
+    general:    "M20 6 L34 20 L20 34 L6 20 Z M20 12 L28 20 L20 28 L12 20 Z", // nested diamond
+  };
+  const d = glyphs[role ?? "general"] ?? glyphs.general;
   return (
-    <div className="group relative flex flex-col rounded-2xl overflow-hidden"
-      style={{
-        background: `linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(0,0,0,0.55) 100%)`,
-        border: `1px solid ${color}28`,
-        boxShadow: `inset 0 1px 0 rgba(255,255,255,0.05)`,
-      }}>
-      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none rounded-2xl"
-        style={{ background: `radial-gradient(ellipse 80% 60% at 50% 0%, ${color}12 0%, transparent 70%)` }} />
+    <svg viewBox="0 0 40 40" width={40} height={40}>
+      <path d={d} fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+        style={{ filter: `drop-shadow(0 0 4px ${color}88)` }} />
+    </svg>
+  );
+}
 
-      {/* Avatar band */}
-      <div className="relative flex flex-col items-center pt-5 pb-3 px-4"
-        style={{ background: `linear-gradient(180deg, ${color}10 0%, transparent 100%)` }}>
-        <div className="relative mb-2" style={{ width: 58, height: 58 }}>
-          <svg viewBox="0 0 58 58" width={58} height={58} style={{ position: "absolute", inset: 0 }}>
-            <polygon points="29,2 56,29 29,56 2,29"
-              fill={`${color}18`} stroke={color} strokeWidth="1.4" strokeOpacity="0.65" />
-            <polygon points="29,11 47,29 29,47 11,29"
-              fill="none" stroke={color} strokeWidth="0.7" strokeOpacity="0.35" />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-[12px] font-black tracking-wider"
-              style={{ color, fontFamily: "monospace", textShadow: `0 0 10px ${color}99` }}>
-              SA
-            </span>
+function EliteCard({
+  name, title, role, statusColor, statusLabel, lastSeen, isLive, isHuman,
+  badge, onView, onPing,
+}: {
+  name: string; title?: string; role?: string;
+  statusColor: string; statusLabel: string; lastSeen?: string;
+  isLive: boolean; isHuman?: boolean; badge?: string;
+  onView?: () => void; onPing?: () => void;
+}) {
+  const c = statusColor;
+  return (
+    <div className="group relative flex flex-col rounded-2xl overflow-hidden transition-all duration-200 hover:scale-[1.02] cursor-pointer"
+      style={{
+        background: "linear-gradient(160deg, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0.6) 100%)",
+        border: `1px solid ${c}22`,
+        boxShadow: isLive ? `0 0 20px ${c}1a, inset 0 1px 0 rgba(255,255,255,0.06)` : "inset 0 1px 0 rgba(255,255,255,0.04)",
+      }}>
+      {/* Hover glow */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+        style={{ background: `radial-gradient(ellipse 70% 50% at 50% 0%, ${c}0e 0%, transparent 65%)` }} />
+
+      {/* Top color accent bar */}
+      <div className="h-[2px] w-full" style={{ background: `linear-gradient(90deg, transparent, ${c}55, transparent)` }} />
+
+      {/* Glyph zone */}
+      <div className="flex flex-col items-center pt-4 pb-2 px-3 gap-2"
+        style={{ background: `linear-gradient(180deg, ${c}08 0%, transparent 100%)` }}>
+        {/* Live pulse ring */}
+        <div className="relative flex items-center justify-center">
+          {isLive && (
+            <div className="absolute inset-[-6px] rounded-full animate-ping opacity-10"
+              style={{ background: c }} />
+          )}
+          <div className="relative rounded-full flex items-center justify-center"
+            style={{
+              width: 52, height: 52,
+              background: `radial-gradient(circle at 30% 30%, ${c}18, rgba(0,0,0,0.5))`,
+              border: `1px solid ${c}30`,
+              boxShadow: `inset 0 1px 0 ${c}20`,
+            }}>
+            <RoleGlyph role={role} color={c} />
           </div>
-          <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2"
-            style={{ background: "#34d399", borderColor: "rgba(5,5,10,1)", boxShadow: "0 0 6px #34d399" }} />
+          {/* Status dot */}
+          <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-[1.5px]"
+            style={{ background: c, borderColor: "rgba(5,5,10,1)", boxShadow: `0 0 5px ${c}` }} />
         </div>
-        <div className="text-center">
-          <div className="text-[13px] font-black leading-tight tracking-wide text-white/92"
+
+        {/* Name */}
+        <div className="text-center w-full">
+          <div className="text-[12px] font-black tracking-wide leading-tight text-white/90 truncate"
             style={{ fontFamily: "monospace" }}>
-            Saif Amer
+            {name}
           </div>
-          <div className="text-[10px] mt-0.5 font-medium" style={{ color: GOLD + "99", fontFamily: "monospace" }}>
-            President & Co-Founder
-          </div>
+          {badge && (
+            <div className="text-[8px] font-black tracking-widest mt-0.5" style={{ color: GOLD, fontFamily: "monospace" }}>
+              {badge}
+            </div>
+          )}
+          {title && (
+            <div className="text-[9px] mt-0.5 leading-tight text-white/40 truncate">{title}</div>
+          )}
         </div>
       </div>
 
-      <div className="px-3 pb-3 pt-1 flex flex-col gap-2">
+      {/* Footer */}
+      <div className="px-2.5 pb-2.5 pt-1 flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
-          <span className="text-[9px] font-black tracking-widest px-2 py-0.5 rounded-full"
-            style={{ color: "#34d399", background: "rgba(52,211,153,0.12)", border: "1px solid rgba(52,211,153,0.28)", fontFamily: "monospace" }}>
-            ONLINE
+          <span className="text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded-full"
+            style={{ color: c, background: `${c}15`, border: `1px solid ${c}28`, fontFamily: "monospace" }}>
+            {statusLabel}
           </span>
-          <span className="text-[9px] text-white/30 font-mono">Human</span>
+          <span className="text-[8px] text-white/25 font-mono">{lastSeen ?? "—"}</span>
         </div>
-        <div className="text-[9px] font-black tracking-widest py-1.5 rounded-lg text-center"
-          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.25)", fontFamily: "monospace" }}>
-          YOU
-        </div>
+        {!isHuman && (
+          <div className="flex gap-1">
+            <button onClick={onView}
+              className="flex-1 text-[8px] font-black tracking-widest py-1.5 rounded-lg transition-colors"
+              style={{ background: `${c}12`, border: `1px solid ${c}25`, color: c, fontFamily: "monospace" }}>
+              VIEW
+            </button>
+            <button onClick={onPing}
+              className="flex-1 text-[8px] font-black tracking-widest py-1.5 rounded-lg transition-colors"
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.45)", fontFamily: "monospace" }}>
+              PING
+            </button>
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+function RazorCard() {
+  return (
+    <EliteCard
+      name="Saif Amer"
+      title="President & Co-Founder"
+      badge="RAZOR"
+      role="ceo"
+      statusColor="#34d399"
+      statusLabel="ONLINE"
+      isLive={false}
+      isHuman={true}
+    />
   );
 }
 
@@ -237,102 +307,21 @@ function TeamGrid({ agents, onPing }: { agents: Agent[]; onPing: (a: Agent) => v
 
 // ─────────────────────────────────────────────────────────────────────────────
 function AgentCard({ agent, onPing }: { agent: Agent; onPing: (agent: Agent) => void }) {
-  const color   = STATUS_COLOR[agent.status] ?? "#6b7280";
-  const label   = STATUS_LABEL[agent.status]  ?? agent.status.toUpperCase();
-  const initials = agent.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
-  const isLive  = agent.status === "running";
-
+  const navigate = useNavigate();
+  const color = STATUS_COLOR[agent.status] ?? "#6b7280";
+  const label = STATUS_LABEL[agent.status] ?? agent.status.toUpperCase();
   return (
-    <div className="group relative flex flex-col rounded-2xl overflow-hidden transition-all duration-200 hover:scale-[1.025] hover:shadow-lg cursor-pointer"
-      style={{
-        background: `linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(0,0,0,0.55) 100%)`,
-        border: `1px solid ${color}28`,
-        boxShadow: isLive ? `0 0 22px ${color}22, inset 0 1px 0 rgba(255,255,255,0.05)` : `inset 0 1px 0 rgba(255,255,255,0.04)`,
-      }}
-    >
-      {/* Glow sweep on hover */}
-      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none rounded-2xl"
-        style={{ background: `radial-gradient(ellipse 80% 60% at 50% 0%, ${color}12 0%, transparent 70%)` }} />
-
-      {/* Avatar band */}
-      <div className="relative flex flex-col items-center pt-5 pb-3 px-4"
-        style={{ background: `linear-gradient(180deg, ${color}10 0%, transparent 100%)` }}>
-
-        {/* Diamond avatar */}
-        <div className="relative mb-2" style={{ width: 58, height: 58 }}>
-          {isLive && (
-            <div className="absolute inset-0 animate-ping opacity-15 pointer-events-none"
-              style={{ clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)", background: color }} />
-          )}
-          <svg viewBox="0 0 58 58" width={58} height={58} style={{ position: "absolute", inset: 0 }}>
-            <polygon points="29,2 56,29 29,56 2,29"
-              fill={`${color}18`} stroke={color} strokeWidth="1.4" strokeOpacity="0.65" />
-            <polygon points="29,11 47,29 29,47 11,29"
-              fill="none" stroke={color} strokeWidth="0.7" strokeOpacity="0.35" />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-[13px] font-black tracking-wider"
-              style={{ color, fontFamily: "monospace", textShadow: `0 0 10px ${color}99` }}>
-              {initials}
-            </span>
-          </div>
-          <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2"
-            style={{ background: color, borderColor: "rgba(5,5,10,1)", boxShadow: `0 0 6px ${color}` }} />
-        </div>
-
-        {/* Name + title */}
-        <div className="text-center">
-          <div className="text-[13px] font-black text-white/92 leading-tight tracking-wide" style={{ fontFamily: "monospace" }}>
-            {agent.name.replace(/\s*Agent\s*$/i, "")}
-          </div>
-          {agent.title && (
-            <div className="text-[10px] mt-0.5 font-medium" style={{ color: GOLD + "99", fontFamily: "monospace" }}>
-              {agent.title}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Status + actions */}
-      <div className="px-3 pb-3 pt-1 flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <span className="text-[9px] font-black tracking-widest px-2 py-0.5 rounded-full"
-            style={{ color, background: `${color}18`, border: `1px solid ${color}30`, fontFamily: "monospace" }}>
-            {label}
-          </span>
-          <span className="text-[9px] text-white/30 font-mono">
-            {agent.lastHeartbeatAt ? timeAgo(agent.lastHeartbeatAt) : "Never"}
-          </span>
-        </div>
-
-        {/* Buttons */}
-        <div className="flex gap-1.5">
-          <Link to={`/agents/${agent.urlKey ?? agent.id}`} className="no-underline flex-1">
-            <div className="text-center text-[9px] font-black tracking-widest py-1.5 rounded-lg transition-all hover:opacity-90"
-              style={{
-                background: `${color}14`,
-                border: `1px solid ${color}28`,
-                color: color,
-                fontFamily: "monospace",
-              }}>
-              VIEW
-            </div>
-          </Link>
-          <button
-            onClick={() => onPing(agent)}
-            className="flex-1 text-[9px] font-black tracking-widest py-1.5 rounded-lg transition-all hover:opacity-90"
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              color: "rgba(255,255,255,0.5)",
-              fontFamily: "monospace",
-            }}
-          >
-            PING
-          </button>
-        </div>
-      </div>
-    </div>
+    <EliteCard
+      name={agent.name.replace(/\s*Agent\s*$/i, "")}
+      title={agent.title ?? undefined}
+      role={agent.role ?? undefined}
+      statusColor={color}
+      statusLabel={label}
+      lastSeen={agent.lastHeartbeatAt ? timeAgo(agent.lastHeartbeatAt) : "Never"}
+      isLive={agent.status === "running"}
+      onView={() => navigate(`/agents/${agent.urlKey ?? agent.id}`)}
+      onPing={() => onPing(agent)}
+    />
   );
 }
 
