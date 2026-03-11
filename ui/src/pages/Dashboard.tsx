@@ -193,42 +193,42 @@ function RazorCard() {
 // Row 1: Saif + Francis (2, centered)
 // Row 2: Austin + Egide + Action (3)
 // Row 3: Maureen + Emmanuel + Sohaib + Michal (4, remaining)
-const ROW1_KEYS = ["francis"];
-const ROW2_KEYS = ["austin", "egide", "action"];
+// Match agent by name fragment (case-insensitive)
+function findAgent(agents: Agent[], nameFrag: string): Agent | undefined {
+  return agents.find(a => a.name.toLowerCase().includes(nameFrag.toLowerCase()));
+}
+
+const CARD_W = 170; // fixed card width in px
 
 function TeamGrid({ agents, onPing }: { agents: Agent[]; onPing: (a: Agent) => void }) {
-  const byKey = (key: string) => agents.find(a => (a.urlKey ?? "").toLowerCase() === key);
+  const francis  = findAgent(agents, "francis");
+  const austin   = findAgent(agents, "austin");
+  const egide    = findAgent(agents, "egide");
+  const action   = findAgent(agents, "action");
+  const row2Set  = new Set([francis, austin, egide, action].filter(Boolean).map(a => a!.id));
+  const row3     = agents.filter(a => !row2Set.has(a.id));
 
-  const row1Agents = ROW1_KEYS.map(k => byKey(k)).filter(Boolean) as Agent[];
-  const row2Agents = ROW2_KEYS.map(k => byKey(k)).filter(Boolean) as Agent[];
-  const usedKeys = new Set([...ROW1_KEYS, ...ROW2_KEYS]);
-  const row3Agents = agents.filter(a => !usedKeys.has((a.urlKey ?? "").toLowerCase()));
+  const W = { width: CARD_W, minWidth: CARD_W, maxWidth: CARD_W };
 
   const Card = ({ agent }: { agent: Agent }) => (
-    <div className="min-w-[140px] max-w-[180px] flex-1">
-      <AgentCard agent={agent} onPing={onPing} />
-    </div>
+    <div style={W}><AgentCard agent={agent} onPing={onPing} /></div>
   );
 
   return (
-    <div className="flex flex-col gap-2.5">
+    <div className="flex flex-col gap-2.5 items-center">
       {/* Row 1: Saif + Francis */}
-      <div className="flex justify-center gap-2.5">
-        <div className="min-w-[140px] max-w-[180px] flex-1" style={{ maxWidth: 180 }}>
-          <RazorCard />
-        </div>
-        {row1Agents.map(a => <Card key={a.id} agent={a} />)}
+      <div className="flex gap-2.5 justify-center">
+        <div style={W}><RazorCard /></div>
+        {francis && <Card agent={francis} />}
       </div>
       {/* Row 2: Austin, Egide, Action */}
-      {row2Agents.length > 0 && (
-        <div className="flex justify-center gap-2.5">
-          {row2Agents.map(a => <Card key={a.id} agent={a} />)}
-        </div>
-      )}
-      {/* Row 3: remaining */}
-      {row3Agents.length > 0 && (
-        <div className="flex justify-center gap-2.5">
-          {row3Agents.map(a => <Card key={a.id} agent={a} />)}
+      <div className="flex gap-2.5 justify-center">
+        {[austin, egide, action].filter(Boolean).map(a => <Card key={a!.id} agent={a!} />)}
+      </div>
+      {/* Row 3: everyone else */}
+      {row3.length > 0 && (
+        <div className="flex gap-2.5 justify-center flex-wrap">
+          {row3.map(a => <Card key={a.id} agent={a} />)}
         </div>
       )}
     </div>
