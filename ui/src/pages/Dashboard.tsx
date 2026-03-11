@@ -127,45 +127,47 @@ function TopBar({ totalAgents, runningAgents }: { totalAgents: number; runningAg
 //  Elite agent card
 // ─────────────────────────────────────────────────────────────────────────────
 // ─── Razor (Saif Amer) special card ───────────────────────────────────────────
+// Shared card color — same for all cards including Razor
+const CARD_COLOR = "#6366f1"; // indigo — used for human cards to blend with agent cards
+
 function RazorCard() {
-  const color = "#C9A84C";
+  const color = "#94a3b8"; // same slate tone as idle agents
   return (
     <div className="group relative flex flex-col rounded-2xl overflow-hidden"
       style={{
-        background: `linear-gradient(145deg, rgba(201,168,76,0.08) 0%, rgba(0,0,0,0.65) 100%)`,
-        border: `1px solid ${color}45`,
-        boxShadow: `0 0 28px ${color}18, inset 0 1px 0 rgba(201,168,76,0.12)`,
+        background: `linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(0,0,0,0.55) 100%)`,
+        border: `1px solid ${color}28`,
+        boxShadow: `inset 0 1px 0 rgba(255,255,255,0.05)`,
       }}>
       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none rounded-2xl"
-        style={{ background: `radial-gradient(ellipse 80% 60% at 50% 0%, ${color}14 0%, transparent 70%)` }} />
+        style={{ background: `radial-gradient(ellipse 80% 60% at 50% 0%, ${color}12 0%, transparent 70%)` }} />
 
       {/* Avatar band */}
       <div className="relative flex flex-col items-center pt-5 pb-3 px-4"
-        style={{ background: `linear-gradient(180deg, ${color}12 0%, transparent 100%)` }}>
-        {/* Hexagon avatar */}
+        style={{ background: `linear-gradient(180deg, ${color}10 0%, transparent 100%)` }}>
         <div className="relative mb-2" style={{ width: 58, height: 58 }}>
           <svg viewBox="0 0 58 58" width={58} height={58} style={{ position: "absolute", inset: 0 }}>
-            {/* Hexagon */}
-            <polygon points="29,2 52,15.5 52,42.5 29,56 6,42.5 6,15.5"
-              fill={`${color}20`} stroke={color} strokeWidth="1.5" strokeOpacity="0.8" />
-            <polygon points="29,10 45,19.5 45,38.5 29,48 13,38.5 13,19.5"
-              fill="none" stroke={color} strokeWidth="0.7" strokeOpacity="0.4" />
+            <polygon points="29,2 56,29 29,56 2,29"
+              fill={`${color}18`} stroke={color} strokeWidth="1.4" strokeOpacity="0.65" />
+            <polygon points="29,11 47,29 29,47 11,29"
+              fill="none" stroke={color} strokeWidth="0.7" strokeOpacity="0.35" />
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-[15px] font-black tracking-wider"
-              style={{ color, fontFamily: "monospace", textShadow: `0 0 14px ${color}` }}>
-              🗡️
+            <span className="text-[12px] font-black tracking-wider"
+              style={{ color, fontFamily: "monospace", textShadow: `0 0 10px ${color}99` }}>
+              SA
             </span>
           </div>
           <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2"
             style={{ background: "#34d399", borderColor: "rgba(5,5,10,1)", boxShadow: "0 0 6px #34d399" }} />
         </div>
         <div className="text-center">
-          <div className="text-[13px] font-black leading-tight tracking-wide" style={{ color, fontFamily: "monospace" }}>
-            Razor
+          <div className="text-[13px] font-black leading-tight tracking-wide text-white/92"
+            style={{ fontFamily: "monospace" }}>
+            Saif Amer
           </div>
-          <div className="text-[10px] mt-0.5 font-medium" style={{ color: color + "88", fontFamily: "monospace" }}>
-            Saif Amer · Founder
+          <div className="text-[10px] mt-0.5 font-medium" style={{ color: GOLD + "99", fontFamily: "monospace" }}>
+            President & Co-Founder
           </div>
         </div>
       </div>
@@ -179,10 +181,56 @@ function RazorCard() {
           <span className="text-[9px] text-white/30 font-mono">Human</span>
         </div>
         <div className="text-[9px] font-black tracking-widest py-1.5 rounded-lg text-center"
-          style={{ background: `${color}10`, border: `1px solid ${color}22`, color: color + "88", fontFamily: "monospace" }}>
+          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.25)", fontFamily: "monospace" }}>
           YOU
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Fixed 3-row team grid layout ─────────────────────────────────────────────
+// Row 1: Saif + Francis (2, centered)
+// Row 2: Austin + Egide + Action (3)
+// Row 3: Maureen + Emmanuel + Sohaib + Michal (4, remaining)
+const ROW1_KEYS = ["francis"];
+const ROW2_KEYS = ["austin", "egide", "action"];
+
+function TeamGrid({ agents, onPing }: { agents: Agent[]; onPing: (a: Agent) => void }) {
+  const byKey = (key: string) => agents.find(a => (a.urlKey ?? "").toLowerCase() === key);
+
+  const row1Agents = ROW1_KEYS.map(k => byKey(k)).filter(Boolean) as Agent[];
+  const row2Agents = ROW2_KEYS.map(k => byKey(k)).filter(Boolean) as Agent[];
+  const usedKeys = new Set([...ROW1_KEYS, ...ROW2_KEYS]);
+  const row3Agents = agents.filter(a => !usedKeys.has((a.urlKey ?? "").toLowerCase()));
+
+  const Card = ({ agent }: { agent: Agent }) => (
+    <div className="min-w-[140px] max-w-[180px] flex-1">
+      <AgentCard agent={agent} onPing={onPing} />
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      {/* Row 1: Saif + Francis */}
+      <div className="flex justify-center gap-2.5">
+        <div className="min-w-[140px] max-w-[180px] flex-1" style={{ maxWidth: 180 }}>
+          <RazorCard />
+        </div>
+        {row1Agents.map(a => <Card key={a.id} agent={a} />)}
+      </div>
+      {/* Row 2: Austin, Egide, Action */}
+      {row2Agents.length > 0 && (
+        <div className="flex justify-center gap-2.5">
+          {row2Agents.map(a => <Card key={a.id} agent={a} />)}
+        </div>
+      )}
+      {/* Row 3: remaining */}
+      {row3Agents.length > 0 && (
+        <div className="flex justify-center gap-2.5">
+          {row3Agents.map(a => <Card key={a.id} agent={a} />)}
+        </div>
+      )}
     </div>
   );
 }
@@ -783,22 +831,7 @@ export function Dashboard() {
             {teamAgents.length === 0 ? (
               <p className="text-[10px] text-white/25 font-mono py-4 text-center">No team agents</p>
             ) : (
-              <div className="flex flex-wrap justify-center gap-2.5">
-                {/* Razor (Saif) — always first, special "ONLINE" card */}
-                <div className="w-[calc(20%-10px)] min-w-[140px] max-w-[180px]">
-                  <RazorCard />
-                </div>
-                {teamAgents
-                  .sort((a, b) => {
-                    const order = ["running","error","pending_approval","paused","idle","terminated"];
-                    return order.indexOf(a.status) - order.indexOf(b.status);
-                  })
-                  .map(agent => (
-                    <div key={agent.id} className="w-[calc(20%-10px)] min-w-[140px] max-w-[180px]">
-                      <AgentCard agent={agent} onPing={setSelectedAgent} />
-                    </div>
-                  ))}
-              </div>
+              <TeamGrid agents={teamAgents} onPing={setSelectedAgent} />
             )}
           </div>
 
