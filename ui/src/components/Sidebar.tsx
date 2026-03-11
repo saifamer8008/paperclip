@@ -97,8 +97,8 @@ export function Sidebar() {
             )}
         >
             <div className={cn(
-                "flex h-14 items-center border-b border-border",
-                isExpanded ? "px-4" : "px-3 justify-center"
+                "flex h-14 items-center border-b border-border justify-center",
+                isExpanded ? "px-4" : "px-3"
             )}>
                 {isExpanded ? (
                     <img src="/src/assets/lfg-logo-white.png" className="h-7 w-auto" alt="LFG" />

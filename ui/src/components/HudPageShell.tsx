@@ -54,7 +54,7 @@ export function HudPageShell({
             )}
             <div className="min-w-0">
               <h1
-                className="text-sm font-black tracking-[0.15em] uppercase leading-tight truncate"
+                className="text-sm font-black tracking-[0.15em] uppercase leading-tight truncate flex items-center gap-2"
                 style={{ color: GOLD }}
               >
                 {title}
@@ -67,8 +67,11 @@ export function HudPageShell({
             </div>
           </div>
 
-          {/* right: action slot */}
-          {action && <div className="shrink-0">{action}</div>}
+          {/* right: logo + action slot */}
+          <div className="shrink-0 flex items-center gap-4">
+            <img src="/src/assets/lfg-logo-white.png" className="h-4 w-auto opacity-30 mix-blend-screen hidden sm:block" alt="LFG" />
+            {action}
+          </div>
         </div>
 
         {/* tab bar slot */}

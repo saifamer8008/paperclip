@@ -96,11 +96,9 @@ function TopBar({
       }}
     >
       <div className="flex items-center gap-3.5">
-        <svg viewBox="0 0 32 32" width={30} height={30}>
-          <polygon points="16,2 30,9 30,23 16,30 2,23 2,9" fill="none" stroke={GOLD} strokeWidth="1.2" />
-          <polygon points="16,7 25,11.5 25,20.5 16,25 7,20.5 7,11.5" fill={GOLD} fillOpacity="0.07" stroke={GOLD} strokeWidth="0.6" strokeOpacity="0.4" />
-          <text x="16" y="20" textAnchor="middle" fontSize="7.5" fontWeight="900" fill={GOLD} fontFamily="monospace" letterSpacing="0.5">LFG</text>
-        </svg>
+        <div className="flex items-center justify-center w-8 h-8 rounded-lg" style={{ background: "rgba(0,0,0,0.4)", border: `1px solid ${GOLD}40`, boxShadow: `0 0 12px ${GOLD}15` }}>
+          <img src="/src/assets/lfg-logo-mark.jpg" alt="LFG" className="w-5 h-5 object-contain mix-blend-screen opacity-90" />
+        </div>
         <div>
           <div className="text-[13px] font-black tracking-[0.22em] uppercase" style={{ color: GOLD }}>MISSION CONTROL</div>
           <div className="text-[9px] tracking-[0.14em] uppercase" style={{ color: GOLD + "60" }}>Laissez-Faire Group · Command Dashboard</div>
