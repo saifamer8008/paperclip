@@ -485,73 +485,98 @@ function NotionTaskRow({ task }: { task: NotionTask }) {
   );
 }
 
-// Rich card used in the Notion Tasks panel — shows name, lead, due, blocker
-function NotionTaskCard({ task }: { task: NotionTask }) {
+// Rich card used in the Notion Tasks panel — shows task name, lead, due, status, blocker
+function NotionTaskCard({ task, compact }: { task: NotionTask; compact?: boolean }) {
   const c = PRIORITY_COLOR[task.priority] ?? "#64748b";
-  const lead = task.assignedTo?.[0] ?? task.assignee ?? null;
-  const hasBlocker = task.blockers && task.blockers.trim().length > 0;
+  const leads = task.assignedTo?.filter(Boolean) ?? (task.assignee ? [task.assignee] : []);
+  const hasBlocker = !!(task.blockers && task.blockers.trim().length > 0);
   const due = task.dueDate ? new Date(task.dueDate) : null;
   const now = Date.now();
   const isOverdue  = due && due.getTime() < now;
   const isDueSoon  = due && !isOverdue && due.getTime() - now < 48 * 60 * 60 * 1000;
-  const dueColor   = isOverdue ? "#f87171" : isDueSoon ? "#fbbf24" : "#94a3b8";
+  const dueColor   = isOverdue ? "#f87171" : isDueSoon ? "#fbbf24" : "#6b7280";
   const dueLabel   = due
-    ? isOverdue
-      ? "OVERDUE"
-      : due.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    ? isOverdue ? "OVERDUE" : due.toLocaleDateString("en-US", { month: "short", day: "numeric" })
     : null;
+
+  const statusCfg: Record<string, { color: string; label: string }> = {
+    "In Progress": { color: "#fbbf24", label: "IN PROG" },
+    "To-Do":       { color: "#818cf8", label: "TO DO" },
+    "Done":        { color: "#34d399", label: "DONE" },
+    "Blocked":     { color: "#f87171", label: "BLOCKED" },
+  };
+  const sc = statusCfg[task.status] ?? { color: "#6b7280", label: (task.status ?? "").toUpperCase().slice(0, 8) };
 
   return (
     <a href={task.url} target="_blank" rel="noreferrer" className="no-underline block group">
-      <div className="mx-3 mb-2 rounded-xl p-3 transition-all group-hover:bg-white/[0.04]"
+      <div
+        className="mx-2.5 mb-2 rounded-xl p-3 transition-all group-hover:translate-y-[-1px]"
         style={{
-          background: hasBlocker ? "rgba(248,113,113,0.04)" : "rgba(255,255,255,0.025)",
-          border: hasBlocker ? "1px solid rgba(248,113,113,0.15)" : `1px solid rgba(255,255,255,0.06)`,
+          background: hasBlocker
+            ? "linear-gradient(135deg, rgba(248,113,113,0.07) 0%, rgba(0,0,0,0.3) 100%)"
+            : "linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0.2) 100%)",
+          border: hasBlocker
+            ? "1px solid rgba(248,113,113,0.2)"
+            : `1px solid rgba(255,255,255,0.07)`,
+          boxShadow: hasBlocker ? "0 2px 12px rgba(248,113,113,0.08)" : "none",
+          transition: "transform 0.15s, box-shadow 0.15s",
         }}>
-        {/* Title row */}
-        <div className="flex items-start gap-2 mb-1.5">
-          <span className="w-1.5 h-1.5 rounded-full shrink-0 mt-1" style={{ background: c }} />
-          <span className="flex-1 text-[12px] font-bold text-white/85 leading-snug group-hover:text-white transition-colors">
-            {task.name}
-          </span>
-          {task.priority && (
-            <span className="text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded-full shrink-0 mt-0.5"
-              style={{ color: c, background: `${c}18`, border: `1px solid ${c}30`, fontFamily: "monospace" }}>
-              {task.priority.toUpperCase()}
-            </span>
-          )}
-        </div>
-        {/* Meta row */}
-        <div className="flex items-center gap-3 pl-3.5 flex-wrap">
-          {lead && (
-            <span className="flex items-center gap-1 text-[10px] font-bold font-mono" style={{ color: GOLD + "cc" }}>
-              <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="2.5" r="1.8" fill="currentColor" opacity="0.7"/><path d="M1 7c0-1.657 1.343-3 3-3s3 1.343 3 3" fill="currentColor" opacity="0.5"/></svg>
-              {lead}
-            </span>
-          )}
-          {dueLabel && (
-            <span className="flex items-center gap-1 text-[10px] font-bold font-mono" style={{ color: dueColor }}>
-              <svg width="8" height="8" viewBox="0 0 8 8"><rect x="0.5" y="1" width="7" height="6.5" rx="1" fill="none" stroke="currentColor" strokeWidth="1"/><path d="M0.5 3h7" stroke="currentColor" strokeWidth="0.8"/><rect x="2" y="0.5" width="1" height="1.5" rx="0.5" fill="currentColor"/><rect x="5" y="0.5" width="1" height="1.5" rx="0.5" fill="currentColor"/></svg>
-              {dueLabel}
-            </span>
-          )}
-          {task.status && (
-            <span className="text-[9px] font-mono text-white/30">{task.status}</span>
-          )}
-        </div>
-        {/* Blocker row */}
-        {hasBlocker && (
-          <div className="mt-2 pl-3.5 flex items-start gap-1.5">
-            <svg width="9" height="9" viewBox="0 0 9 9" className="shrink-0 mt-0.5">
-              <path d="M4.5 1L8.5 8H0.5L4.5 1Z" fill="none" stroke="#f87171" strokeWidth="1.2"/>
-              <path d="M4.5 4.5v1.5" stroke="#f87171" strokeWidth="1.2" strokeLinecap="round"/>
-              <circle cx="4.5" cy="7" r="0.5" fill="#f87171"/>
-            </svg>
-            <span className="text-[10px] font-mono leading-snug" style={{ color: "#f87171" }}>
-              {task.blockers}
-            </span>
+
+        {/* Priority stripe */}
+        <div className="flex items-start gap-2.5">
+          <div className="w-0.5 self-stretch rounded-full shrink-0" style={{ background: c, minHeight: 32 }} />
+          <div className="flex-1 min-w-0">
+            {/* Title */}
+            <p className="text-[12px] font-bold text-white/90 leading-snug mb-2 group-hover:text-white transition-colors">
+              {task.name}
+            </p>
+            {/* Pills row */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {/* Status */}
+              <span className="text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded-full"
+                style={{ color: sc.color, background: `${sc.color}18`, border: `1px solid ${sc.color}30`, fontFamily: "monospace" }}>
+                {sc.label}
+              </span>
+              {/* Priority */}
+              {task.priority && (
+                <span className="text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded-full"
+                  style={{ color: c, background: `${c}12`, border: `1px solid ${c}25`, fontFamily: "monospace" }}>
+                  {task.priority.toUpperCase()}
+                </span>
+              )}
+              {/* Lead(s) */}
+              {leads.map(lead => (
+                <span key={lead} className="flex items-center gap-1 text-[9px] font-bold font-mono px-1.5 py-0.5 rounded-full"
+                  style={{ color: GOLD, background: `${GOLD}14`, border: `1px solid ${GOLD}28` }}>
+                  <svg width="7" height="7" viewBox="0 0 7 7"><circle cx="3.5" cy="2.2" r="1.6" fill="currentColor" opacity="0.8"/><path d="M0.5 6.5c0-1.657 1.343-3 3-3s3 1.343 3 3" fill="currentColor" opacity="0.5"/></svg>
+                  {lead}
+                </span>
+              ))}
+              {/* Due */}
+              {dueLabel && (
+                <span className="flex items-center gap-1 text-[9px] font-bold font-mono px-1.5 py-0.5 rounded-full"
+                  style={{ color: dueColor, background: `${dueColor}12`, border: `1px solid ${dueColor}25` }}>
+                  <svg width="7" height="7" viewBox="0 0 7 7"><rect x="0.5" y="1" width="6" height="5.5" rx="1" fill="none" stroke="currentColor" strokeWidth="0.9"/><path d="M0.5 2.8h6" stroke="currentColor" strokeWidth="0.7"/></svg>
+                  {dueLabel}
+                </span>
+              )}
+            </div>
+            {/* Blocker */}
+            {hasBlocker && (
+              <div className="mt-2 flex items-start gap-1.5 px-2 py-1.5 rounded-lg"
+                style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.15)" }}>
+                <svg width="9" height="9" viewBox="0 0 9 9" className="shrink-0 mt-0.5">
+                  <path d="M4.5 1L8.2 7.5H0.8L4.5 1Z" fill="rgba(248,113,113,0.2)" stroke="#f87171" strokeWidth="1"/>
+                  <path d="M4.5 4v1.5" stroke="#f87171" strokeWidth="1.1" strokeLinecap="round"/>
+                  <circle cx="4.5" cy="6.5" r="0.45" fill="#f87171"/>
+                </svg>
+                <span className="text-[9px] font-mono leading-snug" style={{ color: "#f87171cc" }}>
+                  {task.blockers}
+                </span>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </a>
   );
@@ -1362,157 +1387,194 @@ export function Dashboard() {
       <div className="flex gap-3 flex-1 min-h-0">
 
         {/* ── MAIN AREA (scrollable) ── */}
-        <div className="flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto pb-4"
+        <div className="flex-1 min-w-0 flex flex-col gap-3 overflow-y-auto pb-4"
           style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}22 transparent` }}>
 
-          {/* ── ROW 1: Notion Tasks | Open Tasks + Bottlenecks ── */}
-          <div className="grid grid-cols-2 gap-3 shrink-0">
+          {/* ══════════════════════════════════════════════════════════════
+              ROW 1 — 3-column intel strip:
+              [Notion Tasks]  |  [Human Tasks 24h]  |  [Agent Tasks 24h]
+          ══════════════════════════════════════════════════════════════ */}
+          <div className="grid grid-cols-3 gap-3 shrink-0">
 
-            {/* ── NOTION TASKS panel (rich cards) ── */}
+            {/* ── NOTION TASKS ── */}
             <div className="rounded-2xl overflow-hidden flex flex-col"
-              style={{ background: "rgba(0,0,0,0.45)", border: `1px solid ${GOLD}22` }}>
+              style={{
+                background: "rgba(0,0,0,0.5)",
+                border: `1px solid ${GOLD}28`,
+                boxShadow: `0 0 24px ${GOLD}08`,
+              }}>
               {/* Header */}
-              <div className="flex items-center justify-between px-4 py-2.5 shrink-0"
-                style={{ borderBottom: `1px solid ${GOLD}18`, background: `linear-gradient(90deg, ${GOLD}08 0%, transparent 60%)` }}>
+              <div className="flex items-center justify-between px-3.5 py-2.5 shrink-0"
+                style={{
+                  borderBottom: `1px solid ${GOLD}1a`,
+                  background: `linear-gradient(90deg, ${GOLD}0a 0%, transparent 70%)`,
+                }}>
                 <div className="flex items-center gap-2">
-                  <svg width="12" height="12" viewBox="0 0 12 12" className="shrink-0">
-                    <rect x="0.5" y="0.5" width="11" height="11" rx="2" fill="none" stroke={GOLD} strokeWidth="1.2" strokeOpacity="0.7"/>
-                    <rect x="2.5" y="4" width="7" height="1.2" rx="0.6" fill={GOLD} fillOpacity="0.55"/>
-                    <rect x="2.5" y="6.5" width="5" height="1.2" rx="0.6" fill={GOLD} fillOpacity="0.35"/>
+                  <svg width="11" height="11" viewBox="0 0 11 11">
+                    <rect x="0.5" y="0.5" width="10" height="10" rx="2" fill="none" stroke={GOLD} strokeWidth="1.1" strokeOpacity="0.8"/>
+                    <rect x="2" y="3.5" width="7" height="1.1" rx="0.55" fill={GOLD} fillOpacity="0.6"/>
+                    <rect x="2" y="5.8" width="5" height="1.1" rx="0.55" fill={GOLD} fillOpacity="0.4"/>
+                    <rect x="2" y="8" width="6" height="1.1" rx="0.55" fill={GOLD} fillOpacity="0.25"/>
                   </svg>
-                  <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: GOLD, fontFamily: "monospace" }}>
-                    Notion
+                  <span className="text-[10px] font-black tracking-widest" style={{ color: GOLD, fontFamily: "monospace" }}>
+                    NOTION
                   </span>
                   {notionData && (
                     <span className="text-[8px] px-1.5 py-0.5 rounded-full font-bold font-mono"
-                      style={{ background: GOLD + "18", color: GOLD + "bb" }}>
-                      {notionData.tasks.length} open
+                      style={{ background: `${GOLD}18`, color: `${GOLD}cc`, border: `1px solid ${GOLD}28` }}>
+                      {notionData.tasks.length}
                     </span>
                   )}
                 </div>
                 {notionData && (
-                  <span className="text-[8px] font-mono text-white/20">
-                    synced {new Date(notionData.fetchedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
+                  <span className="text-[8px] font-mono" style={{ color: "rgba(255,255,255,0.2)" }}>
+                    {new Date(notionData.fetchedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
                   </span>
                 )}
               </div>
-              {/* Task cards */}
-              <div className="flex-1 overflow-y-auto pt-2 pb-1"
-                style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}22 transparent` }}>
+              {/* Cards */}
+              <div className="flex-1 overflow-y-auto pt-2 pb-1 min-h-[120px] max-h-[340px]"
+                style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}20 transparent` }}>
                 {!notionData ? (
-                  <div className="flex items-center justify-center py-8">
-                    <span className="text-[9px] font-mono text-white/20 animate-pulse">Loading Notion...</span>
-                  </div>
+                  <p className="text-[9px] font-mono text-white/20 text-center py-8 animate-pulse">Syncing Notion…</p>
                 ) : notionData.tasks.length === 0 ? (
-                  <p className="text-[9px] text-white/20 font-mono px-4 py-3">No open tasks</p>
+                  <p className="text-[9px] font-mono text-white/20 px-3 py-3">All clear</p>
                 ) : (
                   notionData.tasks.map((t: NotionTask) => <NotionTaskCard key={t.id} task={t} />)
                 )}
               </div>
-              {/* Footer tabs for Goals/Deals */}
+              {/* Footer */}
               {notionData && (
-                <div className="flex items-center gap-3 px-4 py-2 shrink-0"
-                  style={{ borderTop: `1px solid rgba(255,255,255,0.05)` }}>
+                <div className="flex items-center justify-between px-3.5 py-2 shrink-0"
+                  style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                  <span className="text-[8px] font-mono" style={{ color: "rgba(255,255,255,0.2)" }}>
+                    {notionData.goals.length} goals · {notionData.deals.length} deals
+                  </span>
                   <a href="https://notion.so" target="_blank" rel="noreferrer"
-                    className="text-[9px] font-mono hover:opacity-80 transition-opacity no-underline"
-                    style={{ color: GOLD + "66" }}>
-                    {notionData.goals.length} goals · {notionData.deals.length} deals →
-                  </a>
+                    className="text-[8px] font-black tracking-widest no-underline hover:opacity-80 transition-opacity"
+                    style={{ color: `${GOLD}66` }}>OPEN →</a>
                 </div>
               )}
             </div>
 
-            {/* ── RIGHT OF ROW 1: Tasks + Bottlenecks stacked ── */}
-            <div className="flex flex-col gap-3">
-
-              {/* Open Tasks — human / agent split */}
-              <div className="rounded-2xl overflow-hidden"
-                style={{ background: "rgba(0,0,0,0.4)", border: `1px solid rgba(255,255,255,0.07)` }}>
-                <div className="flex items-center justify-between px-4 py-2.5"
-                  style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-3.5 w-3.5" style={{ color: GOLD }} />
-                    <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: GOLD, fontFamily: "monospace" }}>
-                      Open Tasks
-                    </span>
-                    <span className="text-[8px] px-1.5 py-0.5 rounded-full font-bold font-mono"
-                      style={{ background: GOLD + "18", color: GOLD + "bb" }}>
-                      {allOpen.length}
-                    </span>
-                    <span className="text-[8px] font-mono text-white/25 ml-1">24h</span>
-                  </div>
-                  <Link to="/issues" className="text-[9px] font-bold tracking-widest uppercase hover:opacity-70 transition-opacity"
-                    style={{ color: GOLD + "99" }}>All →</Link>
+            {/* ── HUMAN TASKS (24h) ── */}
+            <div className="rounded-2xl overflow-hidden flex flex-col"
+              style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(167,139,250,0.18)" }}>
+              <div className="flex items-center justify-between px-3.5 py-2.5 shrink-0"
+                style={{
+                  borderBottom: "1px solid rgba(167,139,250,0.1)",
+                  background: "linear-gradient(90deg, rgba(167,139,250,0.06) 0%, transparent 70%)",
+                }}>
+                <div className="flex items-center gap-2">
+                  <svg width="11" height="11" viewBox="0 0 11 11">
+                    <circle cx="5.5" cy="3.5" r="2.2" fill="none" stroke="#a78bfa" strokeWidth="1.1"/>
+                    <path d="M1 10c0-2.485 2.015-4.5 4.5-4.5S10 7.515 10 10" stroke="#a78bfa" strokeWidth="1.1" fill="none"/>
+                  </svg>
+                  <span className="text-[10px] font-black tracking-widest" style={{ color: "#a78bfa", fontFamily: "monospace" }}>HUMAN</span>
+                  <span className="text-[8px] px-1.5 py-0.5 rounded-full font-bold font-mono"
+                    style={{ background: "rgba(167,139,250,0.12)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.25)" }}>
+                    {humanTasks.length + unassignedTasks.length}
+                  </span>
                 </div>
-                <div className="grid grid-cols-2 divide-x divide-white/[0.04]">
-                  {/* Human tasks */}
-                  <div className="py-1">
-                    <div className="px-3 py-1.5">
-                      <span className="text-[8px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded-full"
-                        style={{ color: "#a78bfa", background: "rgba(167,139,250,0.1)", border: "1px solid rgba(167,139,250,0.2)", fontFamily: "monospace" }}>
-                        👤 Human
-                      </span>
-                    </div>
-                    {humanTasks.length === 0 && unassignedTasks.length === 0 ? (
-                      <p className="text-[9px] text-white/20 font-mono px-3 pb-2">None due</p>
-                    ) : (
-                      <>
-                        {humanTasks.map(issue => (
-                          <TaskRow key={issue.id} id={issue.id} title={issue.title} status={issue.status} assignee="Razor" />
-                        ))}
-                        {unassignedTasks.map(issue => (
-                          <TaskRow key={issue.id} id={issue.id} title={issue.title} status={issue.status} />
-                        ))}
-                      </>
-                    )}
-                  </div>
-                  {/* Agent tasks */}
-                  <div className="py-1">
-                    <div className="px-3 py-1.5">
-                      <span className="text-[8px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded-full"
-                        style={{ color: "#34d399", background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", fontFamily: "monospace" }}>
-                        🤖 Agent
-                      </span>
-                    </div>
-                    {agentTasks.length === 0 ? (
-                      <p className="text-[9px] text-white/20 font-mono px-3 pb-2">None active</p>
-                    ) : (
-                      agentTasks.map(issue => (
-                        <TaskRow key={issue.id} id={issue.id} title={issue.title} status={issue.status}
-                          assignee={agentShortName(issue.assigneeAgentId)} />
-                      ))
-                    )}
-                  </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[7px] font-black tracking-widest font-mono px-1.5 py-0.5 rounded-full"
+                    style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf2499", border: "1px solid rgba(251,191,36,0.2)" }}>
+                    24H
+                  </span>
+                  <Link to="/issues" className="text-[8px] font-bold font-mono hover:opacity-70 transition-opacity"
+                    style={{ color: "rgba(167,139,250,0.5)" }}>All →</Link>
                 </div>
               </div>
-
-              {/* Bottlenecks */}
-              <BottlenecksPanel issues={bottleneckTasks} agentMap={agentMap} companyId={selectedCompanyId ?? ""} />
-
+              <div className="flex-1 overflow-y-auto py-1 min-h-[80px] max-h-[340px]"
+                style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(167,139,250,0.15) transparent" }}>
+                {humanTasks.length === 0 && unassignedTasks.length === 0 ? (
+                  <p className="text-[9px] text-white/20 font-mono px-3.5 py-3">Nothing due in 24h</p>
+                ) : (
+                  <>
+                    {humanTasks.map(issue => (
+                      <TaskRow key={issue.id} id={issue.id} title={issue.title} status={issue.status} assignee="Razor" />
+                    ))}
+                    {unassignedTasks.map(issue => (
+                      <TaskRow key={issue.id} id={issue.id} title={issue.title} status={issue.status} />
+                    ))}
+                  </>
+                )}
+              </div>
             </div>
-          </div>
 
-          {/* ── ROW 2: Team Grid (full width) ── */}
+            {/* ── AGENT TASKS (24h) ── */}
+            <div className="rounded-2xl overflow-hidden flex flex-col"
+              style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(52,211,153,0.15)" }}>
+              <div className="flex items-center justify-between px-3.5 py-2.5 shrink-0"
+                style={{
+                  borderBottom: "1px solid rgba(52,211,153,0.1)",
+                  background: "linear-gradient(90deg, rgba(52,211,153,0.05) 0%, transparent 70%)",
+                }}>
+                <div className="flex items-center gap-2">
+                  <svg width="11" height="11" viewBox="0 0 11 11">
+                    <rect x="1" y="2.5" width="9" height="7" rx="1.5" fill="none" stroke="#34d399" strokeWidth="1.1"/>
+                    <circle cx="3.5" cy="6" r="1" fill="#34d399" opacity="0.7"/>
+                    <circle cx="7.5" cy="6" r="1" fill="#34d399" opacity="0.7"/>
+                    <path d="M4 1.5h3" stroke="#34d399" strokeWidth="1.1" strokeLinecap="round"/>
+                  </svg>
+                  <span className="text-[10px] font-black tracking-widest" style={{ color: "#34d399", fontFamily: "monospace" }}>AGENTS</span>
+                  <span className="text-[8px] px-1.5 py-0.5 rounded-full font-bold font-mono"
+                    style={{ background: "rgba(52,211,153,0.1)", color: "#34d399", border: "1px solid rgba(52,211,153,0.2)" }}>
+                    {agentTasks.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[7px] font-black tracking-widest font-mono px-1.5 py-0.5 rounded-full"
+                    style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf2499", border: "1px solid rgba(251,191,36,0.2)" }}>
+                    24H
+                  </span>
+                  <Link to="/issues" className="text-[8px] font-bold font-mono hover:opacity-70 transition-opacity"
+                    style={{ color: "rgba(52,211,153,0.4)" }}>All →</Link>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto py-1 min-h-[80px] max-h-[340px]"
+                style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(52,211,153,0.15) transparent" }}>
+                {agentTasks.length === 0 ? (
+                  <p className="text-[9px] text-white/20 font-mono px-3.5 py-3">No active agent tasks</p>
+                ) : (
+                  agentTasks.map(issue => (
+                    <TaskRow key={issue.id} id={issue.id} title={issue.title} status={issue.status}
+                      assignee={agentShortName(issue.assigneeAgentId)} />
+                  ))
+                )}
+              </div>
+            </div>
+
+          </div>{/* end 3-col row */}
+
+          {/* ══════════════════════════════════════════════════════════════
+              ROW 2 — Bottlenecks (full width, only when present)
+          ══════════════════════════════════════════════════════════════ */}
+          <BottlenecksPanel issues={bottleneckTasks} agentMap={agentMap} companyId={selectedCompanyId ?? ""} />
+
+          {/* ══════════════════════════════════════════════════════════════
+              ROW 3 — Team Grid
+          ══════════════════════════════════════════════════════════════ */}
           <div className="shrink-0 rounded-2xl overflow-hidden"
-            style={{ background: "rgba(0,0,0,0.3)", border: `1px solid rgba(255,255,255,0.06)` }}>
+            style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.06)" }}>
             <div className="flex items-center justify-between px-4 py-2.5"
               style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
               <div className="flex items-center gap-2">
                 <Wifi className="h-3.5 w-3.5" style={{ color: GOLD }} />
-                <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: GOLD, fontFamily: "monospace" }}>
-                  Team
+                <span className="text-[10px] font-black tracking-widest" style={{ color: GOLD, fontFamily: "monospace" }}>
+                  TEAM
                 </span>
                 <span className="text-[8px] px-1.5 py-0.5 rounded-full font-bold font-mono"
-                  style={{ background: GOLD + "18", color: GOLD + "bb" }}>
+                  style={{ background: `${GOLD}18`, color: `${GOLD}bb`, border: `1px solid ${GOLD}28` }}>
                   {teamAgents.length}
                 </span>
               </div>
-              <Link to="/agents" className="text-[9px] font-bold tracking-widest uppercase hover:opacity-70 transition-opacity"
-                style={{ color: GOLD + "99" }}>
+              <Link to="/agents" className="text-[9px] font-bold tracking-widest font-mono hover:opacity-70 transition-opacity"
+                style={{ color: `${GOLD}80` }}>
                 All Agents →
               </Link>
             </div>
-            <div className="px-4 py-3">
+            <div className="px-3 py-3">
               {teamAgents.length === 0 ? (
                 <p className="text-[10px] text-white/25 font-mono py-4 text-center">No team agents</p>
               ) : (
@@ -1521,21 +1583,22 @@ export function Dashboard() {
             </div>
           </div>
 
-          {/* ── ROW 3: Activity Feed ── */}
-          <div className="rounded-2xl overflow-hidden flex flex-col min-h-[160px]"
-            style={{ background: "rgba(0,0,0,0.35)", border: `1px solid rgba(255,255,255,0.05)` }}>
+          {/* ══════════════════════════════════════════════════════════════
+              ROW 4 — Activity Feed
+          ══════════════════════════════════════════════════════════════ */}
+          <div className="rounded-2xl overflow-hidden flex flex-col"
+            style={{ background: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.05)" }}>
             <div className="flex items-center justify-between px-4 py-2.5 shrink-0"
               style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
               <div className="flex items-center gap-2">
                 <History className="h-3.5 w-3.5" style={{ color: GOLD }} />
-                <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: GOLD, fontFamily: "monospace" }}>Activity</span>
+                <span className="text-[10px] font-black tracking-widest" style={{ color: GOLD, fontFamily: "monospace" }}>ACTIVITY</span>
               </div>
-              <Link to="/activity" className="text-[9px] font-bold tracking-widest uppercase hover:opacity-70 transition-opacity"
-                style={{ color: GOLD + "99" }}>
-                All →
-              </Link>
+              <Link to="/activity" className="text-[9px] font-bold font-mono hover:opacity-70 transition-opacity"
+                style={{ color: `${GOLD}80` }}>All →</Link>
             </div>
-            <div className="overflow-y-auto px-2 py-1 max-h-[220px]" style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}22 transparent` }}>
+            <div className="overflow-y-auto px-2 py-1 max-h-[200px]"
+              style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}22 transparent` }}>
               {activity.length === 0 ? (
                 <p className="text-[10px] text-white/25 font-mono text-center py-6">No activity yet</p>
               ) : (
