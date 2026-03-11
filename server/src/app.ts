@@ -26,6 +26,7 @@ import { llmRoutes } from "./routes/llms.js";
 import { assetRoutes } from "./routes/assets.js";
 import { accessRoutes } from "./routes/access.js";
 import { toolForgeRoutes } from "./routes/toolforge.js";
+import { notionRoutes } from "./routes/notion.js";
 import { cronRoutes } from "./routes/crons.js";
 import { journalRoutes } from "./routes/journal.js";
 import type { BetterAuthSessionResult } from "./auth/better-auth.js";
@@ -119,6 +120,7 @@ export async function createApp(
   api.use(toolForgeRoutes);
   api.use("/crons", cronRoutes);
   api.use("/journal", journalRoutes);
+  api.use("/notion", notionRoutes());
   api.use(
     accessRoutes(db, {
       deploymentMode: opts.deploymentMode,

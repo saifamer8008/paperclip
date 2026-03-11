@@ -15,3 +15,4 @@ export { accessRoutes } from "./access.js";
 export { cronRoutes } from "./crons.js";
 export { journalRoutes } from "./journal.js";
 export { toolForgeRoutes } from "./toolforge.js";
+export { notionRoutes } from "./notion.js";

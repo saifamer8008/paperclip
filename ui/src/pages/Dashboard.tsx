@@ -6,6 +6,7 @@ import { projectsApi } from "../api/projects";
 import { dashboardApi } from "../api/dashboard";
 import { heartbeatsApi } from "../api/heartbeats";
 import { issuesApi } from "../api/issues";
+import { notionApi, type NotionTask, type NotionGoal, type NotionDeal } from "../api/notion";
 import { useCompany } from "../context/CompanyContext";
 import { useDialog } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
@@ -313,7 +314,6 @@ function RazorCard() {
     <EliteCard
       name="Saif Amer"
       title="President & Co-Founder"
-      badge="RAZOR"
       role="ceo"
       statusColor="#34d399"
       statusLabel="ONLINE"
@@ -589,6 +589,158 @@ function BottlenecksPanel({ issues, agentMap, companyId }: {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Notion Panel
+// ─────────────────────────────────────────────────────────────────────────────
+const PRIORITY_COLOR: Record<string, string> = {
+  Urgent: "#f87171", High: "#fbbf24", Medium: "#818cf8", Low: "#64748b", P1: "#f87171", P2: "#fbbf24", P3: "#818cf8",
+};
+const DEAL_STATUS_COLOR: Record<string, string> = {
+  Yes: "#34d399", Active: "#34d399", "In Progress": "#fbbf24",
+  "Dormant / Parked": "#374151", Dormant: "#374151",
+};
+
+type NotionTab = "tasks" | "goals" | "deals";
+
+function NotionPanel() {
+  const [tab, setTab] = useState<NotionTab>("tasks");
+  const { data, isLoading, error, dataUpdatedAt } = useQuery({
+    queryKey: queryKeys.notion(),
+    queryFn: () => notionApi.summary(),
+    refetchInterval: 5 * 60 * 1000, // refresh every 5 min
+    staleTime: 3 * 60 * 1000,
+  });
+
+  const TABS: [NotionTab, string, number | undefined][] = [
+    ["tasks", "Tasks",  data?.tasks.length],
+    ["goals", "Goals",  data?.goals.length],
+    ["deals", "Deals",  data?.deals.filter(d => !d.status.toLowerCase().includes("dormant")).length],
+  ];
+
+  const lastSync = dataUpdatedAt
+    ? new Date(dataUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : null;
+
+  return (
+    <div className="shrink-0 rounded-2xl overflow-hidden"
+      style={{ background: "rgba(0,0,0,0.4)", border: `1px solid rgba(255,255,255,0.06)` }}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2.5"
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+        <div className="flex items-center gap-2">
+          <svg viewBox="0 0 18 18" width={14} height={14} fill="none">
+            <rect x="1" y="1" width="16" height="16" rx="3" stroke={GOLD} strokeWidth="1.4" />
+            <rect x="4" y="5" width="10" height="1.5" rx="0.75" fill={GOLD} fillOpacity="0.7" />
+            <rect x="4" y="8.5" width="7" height="1.5" rx="0.75" fill={GOLD} fillOpacity="0.5" />
+            <rect x="4" y="12" width="8" height="1.5" rx="0.75" fill={GOLD} fillOpacity="0.35" />
+          </svg>
+          <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: GOLD, fontFamily: "monospace" }}>
+            Notion
+          </span>
+          {lastSync && (
+            <span className="text-[8px] text-white/25 font-mono">synced {lastSync}</span>
+          )}
+        </div>
+        <div className="flex gap-1">
+          {TABS.map(([t, lbl, cnt]) => (
+            <button key={t} onClick={() => setTab(t)}
+              className="text-[9px] font-bold px-2.5 py-0.5 rounded-full transition-all"
+              style={{
+                background: tab === t ? `${GOLD}20` : "transparent",
+                border: `1px solid ${tab === t ? GOLD + "40" : "transparent"}`,
+                color: tab === t ? GOLD : "rgba(255,255,255,0.35)",
+                fontFamily: "monospace",
+              }}>
+              {lbl}{cnt != null ? ` · ${cnt}` : ""}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-h-[220px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}20 transparent` }}>
+        {isLoading && (
+          <div className="flex items-center justify-center py-6">
+            <span className="text-[10px] text-white/25 font-mono animate-pulse">Loading Notion…</span>
+          </div>
+        )}
+        {error && (
+          <div className="px-4 py-3 text-[10px] font-mono" style={{ color: "#f87171" }}>
+            Notion unavailable — check API key config
+          </div>
+        )}
+        {!isLoading && !error && data && (
+          <>
+            {tab === "tasks" && (
+              data.tasks.length === 0
+                ? <p className="text-[9px] text-white/20 font-mono px-4 py-3">No open tasks</p>
+                : data.tasks.map((t: NotionTask) => (
+                  <a key={t.id} href={t.url} target="_blank" rel="noreferrer" className="no-underline block">
+                    <div className="flex items-center gap-2.5 px-4 py-2 hover:bg-white/[0.025] transition-colors group">
+                      <span className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ background: PRIORITY_COLOR[t.priority] ?? "#64748b" }} />
+                      <span className="flex-1 text-[11px] text-white/70 group-hover:text-white/90 transition-colors truncate">
+                        {t.name}
+                      </span>
+                      {t.assignedTo.length > 0 && (
+                        <span className="text-[8px] text-white/30 font-mono shrink-0">{t.assignedTo[0]}</span>
+                      )}
+                      {t.priority && (
+                        <span className="text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded-full shrink-0"
+                          style={{ color: PRIORITY_COLOR[t.priority] ?? "#64748b", background: `${PRIORITY_COLOR[t.priority] ?? "#64748b"}12`, border: `1px solid ${PRIORITY_COLOR[t.priority] ?? "#64748b"}25`, fontFamily: "monospace" }}>
+                          {t.priority.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                  </a>
+                ))
+            )}
+            {tab === "goals" && (
+              data.goals.length === 0
+                ? <p className="text-[9px] text-white/20 font-mono px-4 py-3">No goals found</p>
+                : data.goals.map((g: NotionGoal) => (
+                  <a key={g.id} href={g.url} target="_blank" rel="noreferrer" className="no-underline block">
+                    <div className="flex items-center gap-2.5 px-4 py-2 hover:bg-white/[0.025] transition-colors group">
+                      <span className="flex-1 text-[11px] text-white/70 group-hover:text-white/90 transition-colors truncate">
+                        {g.name}
+                      </span>
+                      {g.status && (
+                        <span className="text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded-full shrink-0"
+                          style={{ color: PRIORITY_COLOR[g.status] ?? GOLD, background: `${PRIORITY_COLOR[g.status] ?? GOLD}12`, border: `1px solid ${PRIORITY_COLOR[g.status] ?? GOLD}25`, fontFamily: "monospace" }}>
+                          {g.status.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                  </a>
+                ))
+            )}
+            {tab === "deals" && (
+              data.deals.length === 0
+                ? <p className="text-[9px] text-white/20 font-mono px-4 py-3">No deals found</p>
+                : data.deals.map((d: NotionDeal) => {
+                  const c = DEAL_STATUS_COLOR[d.status] ?? "#64748b";
+                  return (
+                    <a key={d.id} href={d.url} target="_blank" rel="noreferrer" className="no-underline block">
+                      <div className="flex items-center gap-2.5 px-4 py-2 hover:bg-white/[0.025] transition-colors group">
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: c }} />
+                        <span className="flex-1 text-[11px] text-white/70 group-hover:text-white/90 transition-colors truncate">
+                          {d.name}
+                        </span>
+                        <span className="text-[8px] font-mono shrink-0" style={{ color: c + "99" }}>
+                          {d.status}
+                        </span>
+                      </div>
+                    </a>
+                  );
+                })
+            )}
+          </>
+        )}
       </div>
     </div>
   );
@@ -1069,6 +1221,9 @@ export function Dashboard() {
 
         {/* ── LEFT COLUMN ── */}
         <div className="flex-1 min-w-0 flex flex-col gap-3 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${GOLD}22 transparent` }}>
+
+          {/* SECTION: Notion */}
+          <NotionPanel />
 
           {/* SECTION: Open Tasks — split human / agent */}
           <div className="shrink-0 rounded-2xl overflow-hidden"
