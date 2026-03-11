@@ -164,7 +164,7 @@ function TopBar({
       <div className="hidden md:flex items-center gap-8">
         {([
           { n: totalAgents,   label: "Total",   color: GOLD2 },
-          { n: runningAgents, label: "Active",  color: runningAgents > 0 ? "#34d399" : GOLD2 },
+          { n: runningAgents, label: "Online",  color: runningAgents > 0 ? "#34d399" : GOLD2 },
           { n: teamAgents.filter(a => a.status === "error").length, label: "Error", color: "#f87171" },
         ] as Array<{ n: number; label: string; color: string }>).map(s => (
           <div key={s.label} className="text-center">
@@ -1293,7 +1293,7 @@ export function Dashboard() {
   const teamAgents    = useMemo(() => (agents ?? []).filter(isTeamAgent), [agents]);
   const allAgents     = agents ?? [];
   const totalAgents   = allAgents.length;
-  const runningAgents = allAgents.filter(a => a.status === "running").length;
+  const runningAgents = allAgents.filter(a => a.status === "running" || a.status === "idle").length;
   const activity      = useMemo(() => (activityRaw ?? []).slice(0, 50), [activityRaw]);
 
   // Tasks split: human (assigneeUserId set, no agent) vs agent
