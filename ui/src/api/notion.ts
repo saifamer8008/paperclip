@@ -9,6 +9,7 @@ export interface NotionTask {
   dueDate?: string | null;
   assignedTo?: string[];
   assignee?: string;
+  blockers?: string;
   category?: string;
 }
 

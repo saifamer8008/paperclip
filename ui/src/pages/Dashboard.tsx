@@ -708,26 +708,54 @@ function NotionPanel() {
             {tab === "tasks" && (
               data.tasks.length === 0
                 ? <p className="text-[9px] text-white/20 font-mono px-4 py-3">No open tasks</p>
-                : data.tasks.map((t: NotionTask) => (
-                  <a key={t.id} href={t.url} target="_blank" rel="noreferrer" className="no-underline block">
-                    <div className="flex items-center gap-2.5 px-4 py-2 hover:bg-white/[0.025] transition-colors group">
-                      <span className="w-1.5 h-1.5 rounded-full shrink-0"
-                        style={{ background: PRIORITY_COLOR[t.priority] ?? "#64748b" }} />
-                      <span className="flex-1 text-[11px] text-white/70 group-hover:text-white/90 transition-colors truncate">
-                        {t.name}
-                      </span>
-                      {((t.assignedTo && t.assignedTo.length > 0) || t.assignee) && (
-                        <span className="text-[8px] text-white/30 font-mono shrink-0">{t.assignedTo?.[0] ?? t.assignee}</span>
-                      )}
-                      {t.priority && (
-                        <span className="text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded-full shrink-0"
-                          style={{ color: PRIORITY_COLOR[t.priority] ?? "#64748b", background: `${PRIORITY_COLOR[t.priority] ?? "#64748b"}12`, border: `1px solid ${PRIORITY_COLOR[t.priority] ?? "#64748b"}25`, fontFamily: "monospace" }}>
-                          {t.priority.toUpperCase()}
-                        </span>
-                      )}
-                    </div>
-                  </a>
-                ))
+                : data.tasks.map((t: NotionTask) => {
+                  const pc = PRIORITY_COLOR[t.priority] ?? "#64748b";
+                  const lead = t.assignedTo?.[0] ?? t.assignee ?? null;
+                  const hasBlocker = t.blockers && t.blockers.trim().length > 0;
+                  const due = t.dueDate ? new Date(t.dueDate) : null;
+                  const now = Date.now();
+                  const isOverdue = due && due.getTime() < now;
+                  const isDueSoon = due && !isOverdue && due.getTime() - now < 48 * 60 * 60 * 1000;
+                  const dueColor = isOverdue ? "#f87171" : isDueSoon ? "#fbbf24" : "#64748b";
+                  return (
+                    <a key={t.id} href={t.url} target="_blank" rel="noreferrer" className="no-underline block">
+                      <div className="flex flex-col gap-0.5 px-4 py-2.5 hover:bg-white/[0.025] transition-colors group"
+                        style={{ borderBottom: hasBlocker ? "1px solid rgba(248,113,113,0.08)" : "1px solid transparent" }}>
+                        <div className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: pc }} />
+                          <span className="flex-1 text-[11px] text-white/75 group-hover:text-white/95 transition-colors truncate">
+                            {t.name}
+                          </span>
+                          {t.priority && (
+                            <span className="text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded-full shrink-0"
+                              style={{ color: pc, background: `${pc}12`, border: `1px solid ${pc}25`, fontFamily: "monospace" }}>
+                              {t.priority.toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        {(lead || due || hasBlocker) && (
+                          <div className="flex items-center gap-3 pl-3.5">
+                            {lead && (
+                              <span className="text-[9px] font-bold font-mono" style={{ color: GOLD + "99" }}>
+                                👤 {lead}
+                              </span>
+                            )}
+                            {due && (
+                              <span className="text-[9px] font-mono font-bold" style={{ color: dueColor }}>
+                                {isOverdue ? "⚠ OVERDUE" : `📅 ${due.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
+                              </span>
+                            )}
+                            {hasBlocker && (
+                              <span className="text-[9px] font-mono truncate max-w-[120px]" style={{ color: "#f87171" }}>
+                                🚧 {t.blockers}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </a>
+                  );
+                })
             )}
             {tab === "goals" && (
               data.goals.length === 0
@@ -1201,9 +1229,14 @@ export function Dashboard() {
     (issues ?? []).filter(i => i.status !== "done" && i.status !== "cancelled" && i.status !== "backlog"),
     [issues]
   );
-  const humanTasks = useMemo(() => allOpen.filter(i => !!i.assigneeUserId && !i.assigneeAgentId).slice(0, 6), [allOpen]);
-  const agentTasks = useMemo(() => allOpen.filter(i => !!i.assigneeAgentId).slice(0, 6), [allOpen]);
-  const unassignedTasks = useMemo(() => allOpen.filter(i => !i.assigneeUserId && !i.assigneeAgentId).slice(0, 4), [allOpen]);
+  // Only show issues active/updated in last 24h or status is in_progress/blocked
+  const recentCutoff = Date.now() - 24 * 60 * 60 * 1000;
+  const isUrgent = (i: typeof allOpen[0]) =>
+    i.status === "in_progress" || i.status === "blocked" ||
+    new Date(i.updatedAt).getTime() > recentCutoff;
+  const humanTasks = useMemo(() => allOpen.filter(i => (!!i.assigneeUserId && !i.assigneeAgentId) && isUrgent(i)).slice(0, 6), [allOpen]);
+  const agentTasks = useMemo(() => allOpen.filter(i => !!i.assigneeAgentId && isUrgent(i)).slice(0, 6), [allOpen]);
+  const unassignedTasks = useMemo(() => allOpen.filter(i => !i.assigneeUserId && !i.assigneeAgentId && isUrgent(i)).slice(0, 4), [allOpen]);
 
   // Bottlenecks: blocked or critical+overdue (using priority=critical or status=blocked as proxy)
   const bottleneckTasks = useMemo(() =>
