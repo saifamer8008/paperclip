@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from "react";
-import { useLocation, useNavigate } from "@/lib/router";
+import { useNavigate } from "@/lib/router";
+import { useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { agentsApi } from "../api/agents";
 import { issuesApi } from "../api/issues";
@@ -206,7 +207,7 @@ export function Agents() {
 
   const totalCostCents = costSummary?.spendCents ?? 0;
 
-  const setView = (v: View) => navigate(`/${selectedCompanyId ? '' : ''}agents?view=${v}`);
+  const setView = (v: View) => navigate(`/agents?view=${v}`);
 
   if (!selectedCompanyId) return <EmptyState icon={Bot} message="Select a company to view agents." />;
   if (isLoading) return <PageSkeleton variant="list" />;

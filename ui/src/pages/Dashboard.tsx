@@ -119,7 +119,7 @@ function TopBar({
           <span className="w-2 h-2 rounded-full shrink-0" style={{ background: viewerColor, boxShadow: viewer ? `0 0 5px ${viewerColor}` : undefined }} />
           <span className="text-[10px] font-black tracking-widest uppercase"
             style={{ color: viewer ? viewerColor : "rgba(255,255,255,0.4)", fontFamily: "monospace" }}>
-            {viewer ? viewer.name.replace(/\s*Agent\s*$/i, "") : "Who are you?"}
+            {viewer ? viewer.name.replace(/\s*Agent\s*$/i, "") : "Razor"}
           </span>
           <span className="text-[9px]" style={{ color: "rgba(255,255,255,0.3)" }}>▾</span>
         </button>
@@ -133,9 +133,12 @@ function TopBar({
               className="w-full flex items-center gap-2.5 px-3 py-2 transition-colors hover:bg-white/[0.04]"
               style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              <span className="text-[10px] font-black tracking-widest" style={{ color: !viewer ? GOLD : "rgba(255,255,255,0.75)", fontFamily: "monospace" }}>
-                Saif Amer
-              </span>
+              <div className="flex flex-col items-start">
+                <span className="text-[10px] font-black tracking-widest leading-tight" style={{ color: !viewer ? GOLD : "rgba(255,255,255,0.75)", fontFamily: "monospace" }}>
+                  Razor
+                </span>
+                <span className="text-[8px] leading-tight" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "monospace" }}>Saif Amer</span>
+              </div>
               {!viewer && <span className="ml-auto text-[8px]" style={{ color: GOLD }}>✓</span>}
             </button>
             {teamAgents.map(a => {
@@ -159,10 +162,11 @@ function TopBar({
       </div>
 
       <div className="hidden md:flex items-center gap-8">
-        {[
-          { n: totalAgents,   label: "Agents",  color: GOLD2 },
-          { n: runningAgents, label: "Active",   color: runningAgents > 0 ? "#34d399" : GOLD2 },
-        ].map(s => (
+        {([
+          { n: totalAgents,   label: "Total",   color: GOLD2 },
+          { n: runningAgents, label: "Active",  color: runningAgents > 0 ? "#34d399" : GOLD2 },
+          { n: teamAgents.filter(a => a.status === "error").length, label: "Error", color: "#f87171" },
+        ] as Array<{ n: number; label: string; color: string }>).map(s => (
           <div key={s.label} className="text-center">
             <div className="text-[22px] font-black tabular-nums leading-none" style={{ color: s.color }}>{s.n}</div>
             <div className="text-[8px] tracking-widest uppercase mt-0.5" style={{ color: s.color + "70" }}>{s.label}</div>
@@ -454,6 +458,30 @@ function TaskRow({ title, status, assignee, id }: { title: string; status: strin
         </span>
       </div>
     </Link>
+  );
+}
+
+function NotionTaskRow({ task }: { task: NotionTask }) {
+  const c = PRIORITY_COLOR[task.priority] ?? "#64748b";
+  return (
+    <a href={task.url} target="_blank" rel="noreferrer" className="no-underline block group">
+      <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all hover:bg-white/[0.03]"
+        style={{ border: "1px solid transparent" }}>
+        <svg viewBox="0 0 10 10" width={10} height={10} className="shrink-0">
+          <rect x="0.5" y="0.5" width="9" height="9" rx="1.5" fill="none" stroke={GOLD} strokeWidth="1" strokeOpacity="0.6" />
+          <rect x="2" y="3" width="6" height="1" rx="0.5" fill={GOLD} fillOpacity="0.5" />
+          <rect x="2" y="5.5" width="4" height="1" rx="0.5" fill={GOLD} fillOpacity="0.35" />
+        </svg>
+        <span className="flex-1 text-[12px] text-white/75 truncate group-hover:text-white/95 transition-colors">{task.name}</span>
+        {task.priority && (
+          <span className="text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded-full shrink-0"
+            style={{ color: c, background: `${c}12`, border: `1px solid ${c}25`, fontFamily: "monospace" }}>
+            {task.priority.toUpperCase()}
+          </span>
+        )}
+        <span className="text-[8px] font-black tracking-wider text-white/20 font-mono shrink-0">Notion</span>
+      </div>
+    </a>
   );
 }
 
@@ -1134,6 +1162,13 @@ export function Dashboard() {
     refetchInterval: 15000,
   });
 
+  const { data: notionData } = useQuery({
+    queryKey: queryKeys.notion(),
+    queryFn: () => notionApi.summary(),
+    staleTime: 3 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+  });
+
   // ── Derived
   const agentMap = useMemo(() => {
     const m = new Map<string, Agent>();
@@ -1156,8 +1191,9 @@ export function Dashboard() {
   }, [issues]);
 
   const teamAgents    = useMemo(() => (agents ?? []).filter(isTeamAgent), [agents]);
-  const totalAgents   = teamAgents.length;
-  const runningAgents = teamAgents.filter(a => a.status === "running").length;
+  const allAgents     = agents ?? [];
+  const totalAgents   = allAgents.length;
+  const runningAgents = allAgents.filter(a => a.status === "running").length;
   const activity      = useMemo(() => (activityRaw ?? []).slice(0, 50), [activityRaw]);
 
   // Tasks split: human (assigneeUserId set, no agent) vs agent
@@ -1254,7 +1290,7 @@ export function Dashboard() {
                     👤 Human
                   </span>
                 </div>
-                {humanTasks.length === 0 && unassignedTasks.length === 0 ? (
+                {humanTasks.length === 0 && unassignedTasks.length === 0 && (!notionData || notionData.tasks.length === 0) ? (
                   <p className="text-[9px] text-white/20 font-mono px-3 pb-2">None</p>
                 ) : (
                   <>
@@ -1263,6 +1299,9 @@ export function Dashboard() {
                     ))}
                     {unassignedTasks.map(issue => (
                       <TaskRow key={issue.id} id={issue.id} title={issue.title} status={issue.status} />
+                    ))}
+                    {(notionData?.tasks ?? []).slice(0, 5).map(t => (
+                      <NotionTaskRow key={t.id} task={t} />
                     ))}
                   </>
                 )}
