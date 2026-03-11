@@ -6,9 +6,10 @@ export interface NotionTask {
   name: string;
   status: string;
   priority: string;
-  dueDate: string | null;
-  assignedTo: string[];
-  category: string;
+  dueDate?: string | null;
+  assignedTo?: string[];
+  assignee?: string;
+  category?: string;
 }
 
 export interface NotionGoal {

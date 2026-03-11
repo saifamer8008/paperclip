@@ -716,8 +716,8 @@ function NotionPanel() {
                       <span className="flex-1 text-[11px] text-white/70 group-hover:text-white/90 transition-colors truncate">
                         {t.name}
                       </span>
-                      {t.assignedTo.length > 0 && (
-                        <span className="text-[8px] text-white/30 font-mono shrink-0">{t.assignedTo[0]}</span>
+                      {((t.assignedTo && t.assignedTo.length > 0) || t.assignee) && (
+                        <span className="text-[8px] text-white/30 font-mono shrink-0">{t.assignedTo?.[0] ?? t.assignee}</span>
                       )}
                       {t.priority && (
                         <span className="text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded-full shrink-0"
