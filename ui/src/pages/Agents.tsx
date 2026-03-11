@@ -1,26 +1,26 @@
-import { useEffect } from "react";
-import { Link, useLocation, useNavigate } from "@/lib/router";
+import { useEffect, useMemo } from "react";
+import { useLocation, useNavigate } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { agentsApi } from "../api/agents";
+import { issuesApi } from "../api/issues";
+import { costsApi } from "../api/costs";
 import { useCompany } from "../context/CompanyContext";
 import { useDialog } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
-import { StatusBadge } from "../components/StatusBadge";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { HudPageShell, HudButton } from "../components/HudPageShell";
-import { agentUrl } from "../lib/utils";
-import { timeAgo } from "../lib/timeAgo";
 import { AgentOffice } from "@/components/AgentOffice";
-import { Bot, Plus, Loader2, Zap } from "lucide-react";
+import { EliteCard } from "@/components/EliteCard";
+import { Bot, Plus, Zap, Loader2, AlertCircle, Clock, CheckCircle2 } from "lucide-react";
 import { type Agent } from "@paperclipai/shared";
-import { motion } from "framer-motion";
+import { timeAgo } from "../lib/timeAgo";
+import { formatCents } from "../lib/utils";
 import { useToast } from "../context/ToastContext";
+import { agentUrl } from "../lib/utils";
 
 const GOLD = "#C9A84C";
-
-type View = "office" | "list";
 
 const STATUS_COLOR: Record<string, string> = {
   running: "#34d399",
@@ -28,8 +28,35 @@ const STATUS_COLOR: Record<string, string> = {
   error: "#f87171",
   paused: "#fbbf24",
   pending_approval: "#fb923c",
-  terminated: "#4b5563",
+  terminated: "#374151",
 };
+const STATUS_LABEL: Record<string, string> = {
+  running: "RUNNING",
+  idle: "STANDBY",
+  error: "ERROR",
+  paused: "PAUSED",
+  pending_approval: "APPROVAL",
+  terminated: "TERMINATED",
+};
+
+type View = "office" | "grid";
+
+function ViewTabButton({ active, children, onClick }: { active: boolean; children: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-md px-4 py-2 text-xs font-bold uppercase tracking-widest transition-all"
+      style={{
+        color: active ? GOLD : "rgba(255,255,255,0.4)",
+        border: `1px solid ${active ? GOLD : "transparent"}`,
+        background: active ? "rgba(201,168,76,0.10)" : "transparent",
+        fontFamily: "'Space Mono','Courier New',monospace",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
 
 function HeartbeatTriggerButton({ agentId, agentName, companyId }: { agentId: string; agentName: string; companyId: string }) {
   const { pushToast } = useToast();
@@ -58,11 +85,7 @@ function HeartbeatTriggerButton({ agentId, agentName, companyId }: { agentId: st
 
   return (
     <button
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        trigger.mutate();
-      }}
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); trigger.mutate(); }}
       disabled={trigger.isPending}
       className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-50"
       style={{ background: `${GOLD}14`, color: GOLD, border: `1px solid ${GOLD}33`, fontFamily: "monospace" }}
@@ -73,20 +96,72 @@ function HeartbeatTriggerButton({ agentId, agentName, companyId }: { agentId: st
   );
 }
 
-function ViewTabButton({ active, children, onClick }: { active: boolean; children: React.ReactNode; onClick: () => void }) {
+// ── Fleet status bar ──────────────────────────────────────────────────────────
+function FleetStatusBar({ agents, issueCounts, totalCostCents }: {
+  agents: Agent[];
+  issueCounts: Map<string, number>;
+  totalCostCents: number;
+}) {
+  const byStatus = agents.reduce((acc, a) => {
+    acc[a.status] = (acc[a.status] ?? 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const stats = [
+    { label: "Total",    value: agents.length,              color: GOLD },
+    { label: "Running",  value: byStatus.running ?? 0,      color: "#34d399" },
+    { label: "Standby",  value: byStatus.idle ?? 0,         color: "#818cf8" },
+    { label: "Error",    value: byStatus.error ?? 0,        color: "#f87171" },
+    { label: "Open Tasks", value: [...issueCounts.values()].reduce((a, b) => a + b, 0), color: "#fbbf24" },
+    { label: "30d Spend",  value: formatCents(totalCostCents), color: GOLD, isStr: true },
+  ];
+
   return (
-    <button
-      onClick={onClick}
-      className="rounded-md px-4 py-2 text-xs font-bold uppercase tracking-widest transition-all"
-      style={{
-        color: active ? GOLD : "rgba(255,255,255,0.4)",
-        border: `1px solid ${active ? GOLD : "transparent"}`,
-        background: active ? "rgba(201, 168, 76, 0.10)" : "transparent",
-        fontFamily: "'Space Mono','Courier New',monospace",
-      }}
-    >
-      {children}
-    </button>
+    <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+      {stats.map(s => (
+        <div key={s.label} className="rounded-xl px-3 py-2.5 text-center"
+          style={{ background: "rgba(0,0,0,0.35)", border: `1px solid rgba(255,255,255,0.05)` }}>
+          <div className="text-[18px] font-black tabular-nums leading-none" style={{ color: s.color, fontFamily: "monospace" }}>
+            {s.value}
+          </div>
+          <div className="text-[8px] tracking-widest uppercase mt-0.5 text-white/30" style={{ fontFamily: "monospace" }}>
+            {s.label}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Agent row (list variant) ──────────────────────────────────────────────────
+function AgentGridCard({ agent, openIssues, companyId, onView }: {
+  agent: Agent;
+  openIssues: number;
+  companyId: string;
+  onView: () => void;
+}) {
+  const c = STATUS_COLOR[agent.status] ?? "#6b7280";
+  const lbl = STATUS_LABEL[agent.status] ?? agent.status.toUpperCase();
+  return (
+    <div onClick={onView} className="cursor-pointer">
+      <EliteCard
+        name={agent.name.replace(/\s*Agent\s*$/i, "")}
+        title={agent.title ?? undefined}
+        role={agent.role ?? undefined}
+        statusColor={c}
+        statusLabel={lbl}
+        lastSeen={agent.lastHeartbeatAt ? timeAgo(agent.lastHeartbeatAt) : "Never"}
+        isLive={agent.status === "running"}
+        isHuman={false}
+        onView={onView}
+        onPing={() => {}}
+      />
+      {openIssues > 0 && (
+        <div className="mt-1 text-center text-[8px] font-mono" style={{ color: "#fbbf24" }}>
+          {openIssues} open task{openIssues !== 1 ? "s" : ""}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -96,7 +171,9 @@ export function Agents() {
   const { setBreadcrumbs } = useBreadcrumbs();
   const navigate = useNavigate();
   const location = useLocation();
-  const view: View = new URLSearchParams(location.search).get("view") === "list" ? "list" : "office";
+  const view: View = new URLSearchParams(location.search).get("view") === "office" ? "office" : "grid";
+
+  useEffect(() => { setBreadcrumbs([{ label: "Agents" }]); }, [setBreadcrumbs]);
 
   const { data: agents, isLoading, error } = useQuery({
     queryKey: queryKeys.agents.list(selectedCompanyId!),
@@ -105,22 +182,43 @@ export function Agents() {
     refetchInterval: 10000,
   });
 
-  useEffect(() => {
-    setBreadcrumbs([{ label: "Agents" }]);
-  }, [setBreadcrumbs]);
+  const { data: issues } = useQuery({
+    queryKey: queryKeys.issues.list(selectedCompanyId!),
+    queryFn: () => issuesApi.list(selectedCompanyId!),
+    enabled: !!selectedCompanyId,
+  });
 
-  const setView = (nextView: View) => {
-    navigate(`/agents?view=${nextView}`);
-  };
+  const { data: costSummary } = useQuery({
+    queryKey: queryKeys.costs(selectedCompanyId!),
+    queryFn: () => costsApi.summary(selectedCompanyId!),
+    enabled: !!selectedCompanyId,
+  });
+
+  const issueCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const issue of issues ?? []) {
+      if (issue.assigneeAgentId && issue.status !== "done" && issue.status !== "cancelled") {
+        counts.set(issue.assigneeAgentId, (counts.get(issue.assigneeAgentId) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [issues]);
+
+  const totalCostCents = costSummary?.spendCents ?? 0;
+
+  const setView = (v: View) => navigate(`/${selectedCompanyId ? '' : ''}agents?view=${v}`);
 
   if (!selectedCompanyId) return <EmptyState icon={Bot} message="Select a company to view agents." />;
   if (isLoading) return <PageSkeleton variant="list" />;
 
+  const agentList = agents ?? [];
+  const runningCount = agentList.filter(a => a.status === "running").length;
+
   return (
     <HudPageShell
       icon={Bot}
-      title="Agents"
-      subtitle={`${agents?.length ?? 0} agents total · ${agents?.filter((a) => a.status === "running").length ?? 0} active`}
+      title="Agent Fleet"
+      subtitle={`${agentList.length} agents · ${runningCount} active`}
       action={
         <HudButton onClick={openNewAgent}>
           <Plus className="h-3 w-3" /> New Agent
@@ -128,83 +226,42 @@ export function Agents() {
       }
       tabs={
         <div className="flex items-center gap-2">
+          <ViewTabButton active={view === "grid"} onClick={() => setView("grid")}>GRID</ViewTabButton>
           <ViewTabButton active={view === "office"} onClick={() => setView("office")}>OFFICE</ViewTabButton>
-          <ViewTabButton active={view === "list"} onClick={() => setView("list")}>LIST</ViewTabButton>
         </div>
       }
       className={view === "office" ? "w-full max-w-none" : undefined}
     >
       {error && <p className="font-mono text-xs text-destructive">{(error as Error).message}</p>}
 
-      {agents?.length === 0 && (
+      {agentList.length === 0 && (
         <EmptyState icon={Bot} message="Create your first agent to get started." action="New Agent" onAction={openNewAgent} />
       )}
 
-      {view === "office" && agents && (
+      {/* Fleet stats bar — always visible */}
+      {agentList.length > 0 && view === "grid" && (
+        <FleetStatusBar agents={agentList} issueCounts={issueCounts} totalCostCents={totalCostCents} />
+      )}
+
+      {view === "office" && agentList.length > 0 && (
         <div className="w-full max-w-none">
-          <AgentOffice agents={agents} companyId={selectedCompanyId} />
+          <AgentOffice agents={agentList} companyId={selectedCompanyId} />
         </div>
       )}
 
-      {view === "list" && agents && agents.length > 0 && (
-        <motion.div
-          className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-          variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
-          initial="hidden"
-          animate="visible"
-        >
-          {agents.map((agent: Agent) => {
-            const color = STATUS_COLOR[agent.status] ?? "#6b7280";
-            return (
-              <motion.div key={agent.id} variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } }}>
-                <Link
-                  to={agentUrl(agent)}
-                  className="no-underline block"
-                  style={{ color: "inherit" }}
-                >
-                  <div
-                    className="relative flex h-full flex-col gap-3 rounded-xl p-4 transition-all duration-150 hover:translate-y-[-1px] cursor-pointer"
-                    style={{
-                      background: "linear-gradient(160deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 100%)",
-                      border: `1px solid ${color}33`,
-                      boxShadow: agent.status === "running" ? `0 0 16px ${color}22` : undefined,
-                    }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-black text-base"
-                        style={{ background: `${color}18`, border: `1px solid ${color}33`, color, fontFamily: "monospace" }}
-                      >
-                        {agent.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-bold text-white/90" style={{ fontFamily: "monospace" }}>
-                          {agent.name.replace(" Agent", "")}
-                        </div>
-                        {agent.title && <div className="truncate text-[10px] text-white/45">{agent.title}</div>}
-                      </div>
-                      <StatusBadge status={agent.status} />
-                    </div>
-
-                    <div className="font-mono text-[10px] text-white/40">
-                      {agent.lastHeartbeatAt ? `Last active ${timeAgo(agent.lastHeartbeatAt)}` : "Never active"}
-                    </div>
-
-                    <div className="mt-auto flex items-center justify-between border-t border-white/[0.05] pt-1" onClick={(e) => e.preventDefault()}>
-                      <HeartbeatTriggerButton agentId={agent.id} agentName={agent.name} companyId={selectedCompanyId} />
-                      <span
-                        className="text-[10px] font-bold uppercase tracking-widest"
-                        style={{ color: GOLD, fontFamily: "monospace" }}
-                      >
-                        View →
-                      </span>
-                    </div>
-                  </div>
-                </Link>
-              </motion.div>
-            );
-          })}
-        </motion.div>
+      {view === "grid" && agentList.length > 0 && (
+        <div className="grid gap-3"
+          style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
+          {agentList.map((agent: Agent) => (
+            <AgentGridCard
+              key={agent.id}
+              agent={agent}
+              openIssues={issueCounts.get(agent.id) ?? 0}
+              companyId={selectedCompanyId}
+              onView={() => navigate(agentUrl(agent))}
+            />
+          ))}
+        </div>
       )}
     </HudPageShell>
   );

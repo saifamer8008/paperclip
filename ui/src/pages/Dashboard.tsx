@@ -14,6 +14,7 @@ import { useToast } from "../context/ToastContext";
 import { queryKeys } from "../lib/queryKeys";
 import { ActivityRow } from "../components/ActivityRow";
 import { PageSkeleton } from "../components/PageSkeleton";
+import { EliteCard as EliteCardShared, RoleGlyph as RoleGlyphShared } from "../components/EliteCard";
 import { timeAgo } from "../lib/timeAgo";
 import { Link, useNavigate } from "@/lib/router";
 import { Bot, Wifi, History, Send, Info, CircleDotDashed, Zap, CheckCircle2, MessageSquare } from "lucide-react";
